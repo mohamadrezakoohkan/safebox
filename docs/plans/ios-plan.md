@@ -78,7 +78,7 @@ SwiftUI Views  →  @Observable ViewModels  →  Repository protocols  →  Swif
 
 - **Views** are dumb; every screen with logic gets a view model.
 - **View models** are `@MainActor @Observable` classes constructed with their repository dependencies; no singletons inside them.
-- **Repositories** are protocols (`PhotoRepository`, `NoteRepository`, `ContactRepository`, `PasscodeStore`, `SettingsStore`) with production implementations backed by SwiftData/files/Keychain and in-memory fakes for tests and previews.
+- **Repositories** are protocols (`PhotoRepository`, `NoteRepository`, `ContactRepository`, `PasscodeStore`) with production implementations backed by SwiftData/files/Keychain and in-memory fakes for tests and previews. (No `SettingsStore` in iteration 1 — nothing user-configurable is persisted: auto-lock is always immediate and the only Settings actions are change-passcode and Lock now.)
 
 ### 2.2 Dependency injection — parent-constructed view models
 
@@ -92,7 +92,6 @@ struct AppContainer {
     let noteRepository: any NoteRepository
     let contactRepository: any ContactRepository
     let passcodeStore: any PasscodeStore
-    let settingsStore: any SettingsStore
     let lockCoordinator: AppLockCoordinator
 
     static func live() -> AppContainer { ... }
@@ -154,9 +153,8 @@ enum LockState {
 
 **Auto-lock policy (idea plan §re-lock model — single model):**
 
-- Setting: **Immediately / 1 min / 5 min, default Immediately** — the time the app may stay backgrounded before it locks. Returning within the window keeps the vault open. There is **no foreground idle timer** in iteration 1 (documented simplification in the idea plan).
-- Measured with a **monotonic clock**: on scene phase `.background`, record `ProcessInfo.processInfo.systemUptime`; on `.active`, lock iff `now − recorded > timeout`. Never wall-clock (`Date`) — the user can change it. If the uptime baseline is missing or inconsistent (process restart, reboot), **fail closed: lock**.
-- **Auto-lock suppression for app-initiated system UI:** presenting `PhotosPicker` (and any permission dialog we ever add) sets an `systemUIInFlight` flag on the coordinator; while set, the background transition does not arm the lock timer. The flag is cleared on picker dismissal/result, and carries a **hard cap** (2 minutes of backgrounded time, pinned in idea plan §2.5.1 and shared with Android): beyond the cap the app locks anyway. If the lock fired despite the exemption (cap exceeded, process death), the in-flight **import still completes at the repository level, keyed by albumId** — `PhotoImporter` is owned by the container, not by a vault view, so the returning picker result is consumed and persisted even though the user resurfaces on the calculator.
+- **Backgrounding locks immediately, always.** There is no grace period, no timeout picker, and nothing persisted: on scene phase `.background`, call `lock()` right there — unless `systemUIInFlight` is set (below). There is **no foreground idle timer** in iteration 1 (documented simplification in the idea plan).
+- **Auto-lock suppression for app-initiated system UI:** presenting `PhotosPicker` (and any permission dialog we ever add) sets an `systemUIInFlight` flag on the coordinator; while set, the background transition does not lock. The flag is cleared on picker dismissal/result, and carries a **hard cap** (2 minutes of backgrounded time, pinned in idea plan §2.5.1 and shared with Android) measured with a **monotonic clock** — on `.background` with the flag set, record `ProcessInfo.processInfo.systemUptime`; on `.active`, lock iff `now − recorded > cap`. Never wall-clock (`Date`) — the user can change it; if the uptime baseline is missing or inconsistent (process restart, reboot), **fail closed: lock**. Beyond the cap the app locks anyway. If the lock fired despite the exemption (cap exceeded, process death), the in-flight **import still completes at the repository level, keyed by albumId** — `PhotoImporter` is owned by the container, not by a vault view, so the returning picker result is consumed and persisted even though the user resurfaces on the calculator.
 
 **Root view:**
 
@@ -174,7 +172,7 @@ struct RootView: View {
 }
 ```
 
-**Snapshot cover (deliberate iOS mechanism, per idea plan §disguise):** a full-screen calculator-face cover view is installed the moment the scene **resigns active** (`scenePhase == .inactive` — which fires for the app switcher, notification shade, incoming calls, not just backgrounding) and removed on `.active`. This is **independent of the lock decision**: even with a 5-minute auto-lock, the app-switcher snapshot must never show vault content. iOS cannot block screenshots; Android's counterpart is unconditional `FLAG_SECURE` — a documented, deliberate divergence recorded in the idea plan.
+**Snapshot cover (deliberate iOS mechanism, per idea plan §disguise):** a full-screen calculator-face cover view is installed the moment the scene **resigns active** (`scenePhase == .inactive` — which fires for the app switcher, notification shade, incoming calls, not just backgrounding) and removed on `.active`. This is **independent of the lock decision**: even during a §2.5.1 suppression window where the vault stays unlocked, the app-switcher snapshot must never show vault content. iOS cannot block screenshots; Android's counterpart is unconditional `FLAG_SECURE` — a documented, deliberate divergence recorded in the idea plan.
 
 ### 2.4 Change passcode — `PasscodeEntrySession`
 
@@ -296,11 +294,10 @@ Entirely self-contained — **no** `CNContactStore`, no Contacts permission; the
 
 ### 4.5 Settings
 
-`SettingsScreen` — a `Form` with clearly grouped sections. **Iteration-1 contents are exactly: Change passcode, Auto-lock, Lock now, About** (pinned by the idea plan).
+`SettingsScreen` — a `Form` with clearly grouped sections. **Iteration-1 contents are exactly: Change passcode, Lock now, About** (pinned by the idea plan — there is no auto-lock setting; backgrounding always locks immediately per §2.3).
 
 - **Security:**
   - **Change passcode** — presents `CalculatorScreen` driven by a `PasscodeEntrySession` (§2.4): VerifyCurrent → EnterNew → Confirm, with visible wrong-current feedback, cancel, and mismatch handling.
-  - **Auto-lock** picker: **Immediately / 1 min / 5 min, default Immediately** (pinned), stored via `SettingsStore` (`UserDefaults` is fine — the timeout is not a secret).
   - **Lock now** button — calls `lockCoordinator.lock()` immediately (both platforms expose this).
 - **About:** version/build (from bundle) + a short "how it works" blurb. No licenses row — iteration 1 has zero third-party dependencies (Android's About *does* list licenses for its markdown/Coil libraries; the asymmetry is recorded in the idea plan).
 - **Biometric unlock is NOT in iteration 1.** Removed from scope per the idea plan's decision register: it was scope creep with unresolved disguise questions (auto-prompt vs hidden gesture diverged across platforms). It is a **roadmap item for iteration 2**, with the open questions recorded in the idea plan. Consequences here: no toggle in Settings, no `BiometricUnlocker`, no LocalAuthentication import, and **no `NSFaceIDUsageDescription` in Info.plist** (its very presence in the binary would out the "calculator").
@@ -320,11 +317,11 @@ ios/
     App/
       SafeBoxApp.swift                 # @main; builds AppContainer.live(); install-sentinel check
       AppContainer.swift               # DI container: live() and preview() factories
-      RootView.swift                   # switch over LockState; scenePhase auto-lock; cover view
+      RootView.swift                   # switch over LockState; immediate lock on scenePhase .background; cover view
       CalculatorCoverView.swift        # calculator-face snapshot cover (willResignActive)
     Lock/
       AppLockCoordinator.swift         # LockState machine; commit(sequence:), lock(), setup flow,
-                                       # monotonic auto-lock timing, systemUIInFlight suppression
+                                       # immediate lock-on-background, systemUIInFlight suppression + monotonic hard cap
       LockState.swift                  # LockState + SetupPhase enums
       PasscodeEntrySession.swift       # Settings change-passcode flow: VerifyCurrent/EnterNew/Confirm
       PasscodeRules.swift              # shared validation: 4–32 keys, overflow, trivial-sequence check
@@ -373,9 +370,8 @@ ios/
       ContactEditViewModel.swift       # form state + validation (≥1 of given/family/org)
       ContactEditScreen.swift          # create/edit form with labeled multi-value phones/emails
     SettingsFeature/
-      SettingsStore.swift              # protocol + UserDefaultsSettingsStore (auto-lock choice)
       SettingsViewModel.swift          # settings state + actions
-      SettingsScreen.swift             # Change passcode / Auto-lock / Lock now / About
+      SettingsScreen.swift             # Change passcode / Lock now / About
       ChangePasscodeFlow.swift         # hosts CalculatorScreen driven by PasscodeEntrySession
     Persistence/
       Models.swift                     # @Model Album, Photo, Note, Tag, Contact (+ LabeledValue)
@@ -425,8 +421,8 @@ Build order minimizes rework: lock shell first (it's the app's front door), then
 **M6 — Contacts.** Sectioned searchable list, detail with long-press copy, create/edit/delete form with labeled multi-value phones/emails + address.
 *Accept:* full CRUD; org-only contact allowed; search hits name/org/phone/email; familyName-first sections with `#` bucket correct; long-press copies values, and no `tel:`/`mailto:` handoff exists anywhere; survives relaunch.
 
-**M7 — Settings + auto-lock + change passcode.** `PasscodeEntrySession` flow, auto-lock enforcement (monotonic clock, Immediately/1 min/5 min), Lock now, About.
-*Accept:* change passcode requires the current one with visible wrong-current feedback and cancel; mismatch-on-confirm returns to EnterNew; after change, old fails and new works; backgrounding past the timeout relocks to the calculator (default = Immediately); changing the device wall clock does not defeat the timer; "Lock now" locks instantly and clears display/buffer; version shown.
+**M7 — Settings + lock polish + change passcode.** `PasscodeEntrySession` flow, immediate lock-on-background enforcement, Lock now, About.
+*Accept:* change passcode requires the current one with visible wrong-current feedback and cancel; mismatch-on-confirm returns to EnterNew; after change, old fails and new works; backgrounding relocks to the calculator immediately (except during a picker suppression window, whose monotonic hard cap is not defeated by changing the device wall clock); "Lock now" locks instantly and clears display/buffer; version shown.
 
 **M8 — Hardening & polish.** Privacy manifest, snapshot cover view verified from every tab, icon + display name, orphan sweep, tmp/ cleanup, SwiftLint pass, empty states, dynamic-type sanity check.
 *Accept:* app switcher shows the calculator cover — never vault content — from every tab and in the inactive (peek) phase; `PrivacyInfo.xcprivacy` present and accurate; no `NSFaceIDUsageDescription` or other vault-revealing strings in Info.plist; lint clean; `MANUAL_TESTS.md` fully passes on device.
@@ -447,7 +443,7 @@ Highest-value, fully automatable targets:
 
 ### 7.2 Manual in iteration 1
 
-UI tests (XCUITest) are deliberately skipped — poor cost/benefit at this stage. A written manual test script (checked in as `ios/MANUAL_TESTS.md`, executed at M8) covers: full disguise walkthrough, photo import at scale (incl. picker round-trip without locking), zoom/swipe feel (clamped pan, zoom reset), auto-lock timing across the three settings, change-passcode paths (wrong current, mismatch, cancel), app-switcher snapshot check from every tab, long-press copy on contacts, backup-exclusion spot check.
+UI tests (XCUITest) are deliberately skipped — poor cost/benefit at this stage. A written manual test script (checked in as `ios/MANUAL_TESTS.md`, executed at M8) covers: full disguise walkthrough, photo import at scale (incl. picker round-trip without locking), zoom/swipe feel (clamped pan, zoom reset), immediate lock on backgrounding (incl. the picker suppression window and its 2-minute cap), change-passcode paths (wrong current, mismatch, cancel), app-switcher snapshot check from every tab, long-press copy on contacts, backup-exclusion spot check.
 
 ### 7.3 CI reality check
 
@@ -467,7 +463,7 @@ This repo's cloud/agent sessions **cannot run Xcode** — no `xcodebuild`, no si
 
 1. **SwiftData migrations.** SwiftData's lightweight migration works for additive changes only; anything structural needs `SchemaMigrationPlan`/`VersionedSchema`. Mitigation: define `SchemaV1` as a `VersionedSchema` **from day one** and route the container through a `MigrationPlan`, even while trivial — retrofitting versioning after users have stores is the painful part. Never rename/retype fields casually in review. **Related version trap:** the deployment target is iOS 17, so iOS 18-only SwiftData surface (`#Unique`, `#Index`, history tracking) must not appear anywhere; uniqueness uses `@Attribute(.unique)` (§3.2). This audit has been applied to the whole plan; keep applying it in review.
 2. **Photo permission scope — avoided entirely.** `PhotosPicker` runs out-of-process; the app never requests photo-library authorization and needs **no** `NSPhotoLibraryUsageDescription`. Do not "improve" import with `PHPickerViewController` + `PHAsset` fetches or auto-delete-originals — both drag in the permission dialog and undermine the disguise (Settings → Privacy would list the "calculator" as wanting photo access).
-3. **Vault content in app-switcher snapshots.** iOS screenshots the UI on backgrounding, and screenshots themselves cannot be blocked on iOS. Mitigation (the pinned iOS mechanism, deliberately divergent from Android's `FLAG_SECURE` — recorded in the idea plan): install the calculator-face cover view **when the scene resigns active** (`.inactive` — fires for app switcher, notification shade, Control Center, incoming calls) and remove it on `.active`, **independent of the lock decision** — even a 5-minute auto-lock user never exposes vault pixels to the switcher. The lock transition alone is too late and only covers the Immediately setting.
+3. **Vault content in app-switcher snapshots.** iOS screenshots the UI on backgrounding, and screenshots themselves cannot be blocked on iOS. Mitigation (the pinned iOS mechanism, deliberately divergent from Android's `FLAG_SECURE` — recorded in the idea plan): install the calculator-face cover view **when the scene resigns active** (`.inactive` — fires for app switcher, notification shade, Control Center, incoming calls) and remove it on `.active`, **independent of the lock decision** — even during a picker suppression window, where the vault stays unlocked, no vault pixels reach the switcher. The lock transition alone is too late: the snapshot can be taken before the locked branch renders.
 4. **Privacy manifest (`PrivacyInfo.xcprivacy`) is mandatory** for App Store submission. Declare: no tracking, no data collection, required-reason API categories actually used — at minimum `UserDefaults` (CA92.1) and file-timestamp APIs if touched. Keep it accurate; it's also nice supporting evidence that the app is genuinely offline.
 5. **Decrypted data at rest.** Photos/DB live within the sandbox protected by per-file `.completeUnlessOpen` (applied at write time, covering `-wal`/`-shm` — directory attributes are not trusted to propagate) plus backup exclusion via `isExcludedFromBackup` — two separate mechanisms for two separate threats. Real content-layer encryption (per-file keys derived from the passcode) is an iteration-2 candidate — the `PhotoFileStore`/repository seams are where it would slot in. EXIF/location metadata in imported originals is retained in iteration 1 (documented; stripping is an iteration-2 option). `tmp/` picker staging is cleaned on lock and launch so plaintext image copies don't linger outside the vault directory.
 6. **Keychain persists across app deletion.** After uninstall/reinstall, the old passcode hash would still be in the Keychain → the app would boot `.locked` behind a passcode the "new" user doesn't know. Mitigation (pinned): the `UserDefaults` **install sentinel** — absent at launch ⇒ wipe all SafeBox Keychain items ⇒ first-run setup (§2.3, §3.4). Keychain items additionally use `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` so the hash never restores to another device via backup.

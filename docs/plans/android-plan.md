@@ -80,7 +80,7 @@ There is **no biometric dependency**: biometric unlock is not in iteration 1 (se
 **Decision: manual DI via an `AppContainer`.** Justification: a single module with ~10 injectable types (database, 5 repositories, 3 stores, 2 engines) doesn't amortize Hilt's cost (KSP processing, annotation ceremony, learning curve, slower builds). Manual container = one file, zero magic, trivially testable.
 
 - `SafeBoxApplication` holds `val container: AppContainer`.
-- `AppContainer` lazily constructs the Room DB, `PhotoFileStore`, repositories, `PasscodeStore`, `SettingsStore`, `AppLockManager`.
+- `AppContainer` lazily constructs the Room DB, `PhotoFileStore`, repositories, `PasscodeStore`, `AppLockManager`. (No `SettingsStore` in iteration 1 — §3.5.)
 - ViewModels are created with a small `viewModelFactory { }` helper that pulls from the container.
 - Because everything depends on interfaces, migrating to Hilt later is a rename exercise, not a redesign.
 
@@ -105,8 +105,8 @@ Key properties:
 - The locked branch contains **no navigation graph and no vault composables** — nothing vault-related is even composed while locked, so nothing leaks via recomposition or tooling.
 - `LockState` lives in memory only and **defaults to `Locked`** on process creation (see §8.1 — deliberately *not* saved/restored).
 - **Startup resolution of `NeedsSetup` vs `Locked` (decided): the passcode-existence check runs synchronously at process start.** `AppContainer` performs a one-key Preferences DataStore read via `runBlocking` inside `Application.onCreate` (acceptable at process start for a single small key) so `AppLockManager` is constructed already knowing whether a passcode exists. First composition therefore renders the correct mode — a first-run user sees the setup caption immediately and never types into a screen that changes semantics mid-stream. (The considered alternative — an `Initializing` state rendering calculator chrome with input disabled until an async read lands — is rejected in favor of the simpler synchronous read.) This behavior is an explicit M1/M2 acceptance item (§6).
-- **Auto-lock (per the idea-plan re-lock model):** a `DefaultLifecycleObserver` on `ProcessLifecycleOwner` records the backgrounding instant on `onStop`; on `onStart`, if time-since-backgrounding exceeds the configured timeout, `AppLockManager.lock()`. Timestamps use **`SystemClock.elapsedRealtime()`** (monotonic — immune to wall-clock changes); if the elapsed value is unavailable or nonsensical (process restart), **fail closed** (lock). Options: **Immediately / 1 min / 5 min, default Immediately**. There is no foreground idle timer in iteration 1 (documented simplification in the idea plan).
-- **Auto-lock suppression for app-initiated system UI (required).** With the default "Immediately", launching the system Photo Picker would background the app and lock the vault mid-import. `AppLockManager` therefore exposes an in-flight exemption: `beginExternalActivity()` sets a flag **before** the app launches a trusted outgoing system UI (in iteration 1 this is exactly the photo picker and permission dialogs); while the flag is set, `onStop` records the timestamp but the `onStart` check does not lock. The flag is cleared on `onStart`/activity-result delivery, and carries a **hard cap** (2 minutes of backgrounded time measured on `elapsedRealtime`, pinned in idea plan §2.5.1 and shared with iOS), beyond which the normal lock rule applies regardless — the exemption is for a picker round-trip, not for leaving the app open indefinitely. **"Immediately" thus means "immediately, except during a trusted app-initiated outgoing intent"** — this exemption is part of the documented setting semantics. **If the lock happened anyway** (cap exceeded, or process death during the round-trip): the picker result is not consumed by UI — the import completes at the **repository level**, launched in `applicationScope` and keyed by `albumId` before the picker was launched, so delivered URIs are copied into the vault regardless of what is composed. The user returning to a locked app sees the calculator, re-enters the passcode, and finds the imported photos in the target album. See §4.2 and §8.5.
+- **Auto-lock (per the idea-plan re-lock model): backgrounding locks immediately, always.** There is no grace period, no timeout setting, and nothing persisted: a `DefaultLifecycleObserver` on `ProcessLifecycleOwner` calls `AppLockManager.lock()` in `onStop` — unless the §2.3 suppression flag is in flight (below), whose hard cap uses **`SystemClock.elapsedRealtime()`** (monotonic — immune to wall-clock changes); if the elapsed value is unavailable or nonsensical (process restart), **fail closed** (lock). There is no foreground idle timer in iteration 1 (documented simplification in the idea plan).
+- **Auto-lock suppression for app-initiated system UI (required).** With immediate lock-on-background, launching the system Photo Picker would background the app and lock the vault mid-import. `AppLockManager` therefore exposes an in-flight exemption: `beginExternalActivity()` sets a flag **before** the app launches a trusted outgoing system UI (in iteration 1 this is exactly the photo picker and permission dialogs); while the flag is set, `onStop` records the `elapsedRealtime` timestamp instead of locking. The flag is cleared on `onStart`/activity-result delivery, and carries a **hard cap** (2 minutes of backgrounded time measured on `elapsedRealtime`, pinned in idea plan §2.5.1 and shared with iOS), beyond which the normal lock rule applies regardless — the exemption is for a picker round-trip, not for leaving the app open indefinitely. **Immediate lock thus means "immediately, except during a trusted app-initiated outgoing intent"** — the exemption is part of the documented lock semantics. **If the lock happened anyway** (cap exceeded, or process death during the round-trip): the picker result is not consumed by UI — the import completes at the **repository level**, launched in `applicationScope` and keyed by `albumId` before the picker was launched, so delivered URIs are copied into the vault regardless of what is composed. The user returning to a locked app sees the calculator, re-enters the passcode, and finds the imported photos in the target album. See §4.2 and §8.5.
 - **Locking clears transient input:** every `lock()` transition clears the `CalculatorEngine` display state and the `KeySequenceRecorder` buffer. Additionally, on `onStop` **while already `Locked`**, the same clear runs — otherwise a half-typed passcode would still be on screen (and in the buffer) when someone else foregrounds the app. FLAG_SECURE blanks the recents thumbnail but not the live resumed screen, so this clear is load-bearing. Covered by `AppLockManager`/`CalculatorViewModel` tests (§7).
 - **Manual "Lock now"** in Settings calls `AppLockManager.lock()` directly (§4.5).
 
@@ -190,7 +190,7 @@ All queries returning lists return `Flow` so screens are reactive for free; all 
 
 ### 3.5 Settings storage
 
-Preferences DataStore (`settings_store`): `autoLockTimeout` (enum-backed: `IMMEDIATELY` / `ONE_MINUTE` / `FIVE_MINUTES`, **default `IMMEDIATELY`**). Exposed as `Flow` via `SettingsStore`. (No biometric setting in iteration 1 — see §4.5.)
+**None in iteration 1.** Nothing user-configurable is persisted: auto-lock is always immediate (no timeout preference, §2.3), biometrics is deferred (§4.5), and the remaining Settings items (Change passcode, Lock now, About) hold no state outside `PasscodeStore`. A `SettingsStore` DataStore is introduced only when iteration 2 adds its first real preference (e.g. a configurable auto-lock grace period).
 
 ---
 
@@ -235,11 +235,10 @@ Two cleanly separated pure-Kotlin classes (both fully unit-testable on the JVM):
 
 ### 4.5 Settings
 
-`LazyColumn` of preference-style rows, grouped. **Iteration-1 Settings = Change passcode, Auto-lock, Lock now, About** (pinned in the idea plan).
+`LazyColumn` of preference-style rows, grouped. **Iteration-1 Settings = Change passcode, Lock now, About** (pinned in the idea plan — there is no auto-lock row; backgrounding always locks immediately per §2.3).
 
 - **Security:**
   - *Change passcode* → the explicit state machine **VerifyCurrent → EnterNew → Confirm** (idea-plan change-passcode spec), orchestrated by `ChangePasscodeFlow` over `CalculatorScreen`. The verify step uses **`mode = VerifyCurrent` — a dedicated mode with a visible caption ("Enter current passcode") and explicit feedback on a wrong code** (shake + "Incorrect — try again"): silence is a disguise feature *only on the lock screen*; inside the already-unlocked vault it would just be a broken-feeling screen. Unlimited retries in iteration 1. EnterNew/Confirm reuse `CaptureNew`/`ConfirmNew` with the same 4–32/trivial-warning rules; mismatch on confirm restarts EnterNew; cancel at any step returns to Settings with the old passcode intact.
-  - *Auto-lock* → dialog with the pinned options (**Immediately / 1 min / 5 min**, default Immediately) → DataStore. The row's subtitle documents the trusted-outgoing-intent exemption ("Doesn't lock during photo import").
   - *Lock now* → `AppLockManager.lock()` immediately (drops to the calculator).
 - **Biometric unlock: not in iteration 1.** No toggle, no `androidx.biometric` dependency, no prompt trigger. It is an iteration-2 roadmap item in the idea plan, where the open disguise questions (auto-prompt vs hidden gesture; a system biometric sheet appearing over a "calculator") are recorded and must be resolved before implementation.
 - **About:** version (`BuildConfig.VERSION_NAME`) + the short **"how it works" blurb** (shared copy from the idea plan) + a **licenses row** (Android genuinely needs it for the third-party markdown renderer and Coil; iOS has no third-party libraries — this asymmetry is noted in the idea plan and accepted).
@@ -272,7 +271,7 @@ android/
         │       │   └── AppContainer.kt            # manual DI: lazily wires DB, stores, repos, engines, AppLockManager
         │       ├── core/
         │       │   ├── lock/
-        │       │   │   ├── AppLockManager.kt      # StateFlow<LockState>; lock()/unlock(); monotonic auto-lock logic;
+        │       │   │   ├── AppLockManager.kt      # StateFlow<LockState>; lock()/unlock(); immediate lock on onStop;
         │       │   │   │                          #   beginExternalActivity()/endExternalActivity() suppression flag + hard cap
         │       │   │   └── LockState.kt           # sealed: NeedsSetup / Locked / Unlocked
         │       │   ├── database/
@@ -314,7 +313,6 @@ android/
         │       │   │   ├── PhotoFileStore.kt        # filesDir/vault I/O: byte-for-byte copy from Uri, real extension,
         │       │   │   │                            #   thumbnail generation at import, delete, list, dims
         │       │   │   ├── PasscodeStore.kt         # DataStore: Keystore-wrapped {algo,version,iterations,salt,hash} blob
-        │       │   │   └── SettingsStore.kt         # DataStore: autoLockTimeout (Immediately/1m/5m)
         │       │   ├── crypto/
         │       │   │   ├── Pbkdf2.kt                # PBKDF2-HMAC-SHA256 600k/16B-salt derive + constantTimeEquals
         │       │   │   └── KeystoreWrapper.kt       # AES/GCM Keystore key create/encrypt/decrypt + unavailability fallback
@@ -362,7 +360,7 @@ android/
         │       │   │   └── ContactEditScreen.kt     # create/edit form, dynamic labeled phone/email rows
         │       │   └── settings/
         │       │       ├── SettingsViewModel.kt     # settings flows, lock-now, change-passcode flow state
-        │       │       ├── SettingsScreen.kt        # grouped rows: Change passcode, Auto-lock, Lock now, About (blurb+licenses)
+        │       │       ├── SettingsScreen.kt        # grouped rows: Change passcode, Lock now, About (blurb+licenses)
         │       │       └── ChangePasscodeFlow.kt    # VerifyCurrent → EnterNew → Confirm orchestration over CalculatorScreen
         │       └── app/
         │           └── SafeBoxApp.kt                # root composable: LockState switch → Calculator vs VaultScaffold
@@ -388,7 +386,7 @@ android/
 Cloud sessions **can** run `./gradlew assembleDebug`, `testDebugUnitTest` (including Robolectric) — but **no emulator**, so every milestone's acceptance = compile + JVM tests + code review; UI behavior is verified manually on-device at the checkpoints marked *[manual]*.
 
 **M1 — Project skeleton & lock shell.** Gradle/KTS + version catalog, `:app` compiles under applicationId `com.calcplus.calculator`, theme, `MainActivity` with unconditional `FLAG_SECURE`, `AppContainer` with the **synchronous passcode-existence read at process start**, `AppLockManager` (monotonic timing, suppression flag API), `SafeBoxApp` root switch with placeholder Calculator/Vault composables, DataStore stores, manifest with `allowBackup=false` + extraction rules.
-*Accept:* `assembleDebug` green; `AppLockManagerTest` green — default Locked; **first composition already resolved to NeedsSetup vs Locked (no async flip)**; monotonic timeout math for Immediately/1m/5m; suppression flag suppresses onStart lock within the cap and not beyond it; `lock()` emits the clear-transient-input signal.
+*Accept:* `assembleDebug` green; `AppLockManagerTest` green — default Locked; **first composition already resolved to NeedsSetup vs Locked (no async flip)**; `onStop` locks immediately when no suppression flag is set; suppression flag suppresses the lock within the monotonic 2-minute cap and not beyond it; `lock()` emits the clear-transient-input signal.
 
 **M2 — Calculator engine + passcode.** `CalculatorEngine`, `CalcKey` (canonical IDs), `KeySequenceRecorder` (32-key cap + overflow flag), `Pbkdf2` (600k/16-byte salt), `KeystoreWrapper`, `PasscodeStore`, `PasscodeRepository`, `PasscodeMatcher`, `CalculatorScreen` with modes wired to `LockState` (NeedsSetup → ENTRY/CONFIRM → one-time no-recovery notice → Unlocked; Locked → disguise/unlock; verification off the UI path).
 *Accept:* engine suite green (arithmetic incl. chained ops, operator replacement, `%` unary/binary, repeated `=`, `±` edge cases, divide-by-zero, clear semantics, **the idea plan's shared input→display sequence table incl. degenerate all-symbol sequences**); recorder tests (buffer, clear resets, cap + overflow flag never matches); matcher tests (round-trip set→match, near-miss fails, sub-4-key and overflowed commits skip verification, canonical-ID vs display-glyph distinction); `Pbkdf2` known-vector + constant-time-compare tests; `KeystoreWrapper` wrap/unwrap + fallback tests; **first-run cold start composes setup mode on the first frame** (Robolectric). *[manual: full disguise feel on device; no visible difference between match and non-match commits]*
@@ -397,7 +395,7 @@ Cloud sessions **can** run `./gradlew assembleDebug`, `testDebugUnitTest` (inclu
 *Accept:* Robolectric in-memory DAO tests green (album CRUD + cascade photo delete incl. file enumeration; derived-cover query = first photo by sortIndex; note upsert + derived title/snippet recompute + tag cross-ref transaction + `NoteWithTags` + search/tag-filter queries; contact search over name/organization/phone/email incl. case-insensitivity; familyName-first ordering incl. `#` bucket); `NoteDerivationTest` reproduces the idea plan's example table; `PhotoFileStoreTest` (byte-for-byte copy with real extension, thumb generation, delete-with-files, orphan sweep on temp dir) green; schema JSON committed.
 
 **M4 — Vault scaffold + Gallery.** Navigation (per §2.4 decision), `NavigationBar`, four tab stubs; full Gallery: album card grid, import via `PickVisualMedia` with **auto-lock suppression + applicationScope repository import**, grid, pager + zoom (2.5×/5×), delete/move.
-*Accept:* build + M1–M3 suites still green; ViewModel unit tests for `PhotoGridViewModel` (import orchestration with faked repo: suppression flag set before launch, import keyed by albumId completes even when lock fires mid-flight) and album list state. *[manual: picker round-trip does not lock the vault with default Immediately; forced-lock-during-import lands photos in the album after re-unlock; zoom gestures; tab back-stack behavior]*
+*Accept:* build + M1–M3 suites still green; ViewModel unit tests for `PhotoGridViewModel` (import orchestration with faked repo: suppression flag set before launch, import keyed by albumId completes even when lock fires mid-flight) and album list state. *[manual: picker round-trip does not lock the vault despite immediate lock-on-background; forced-lock-during-import lands photos in the album after re-unlock; zoom gestures; tab back-stack behavior]*
 
 **M5 — Notes.** List with search + tag filter chips, editor (single markdown field, derived title) with 1 s autosave + flush-on-exit/background, markdown preview constrained to the shared subset, tag chips with colors, swipe-to-delete with confirmation.
 *Accept:* `NoteEditorViewModel` tests (1 s debounced autosave via `runTest` + virtual time, flush on exit/background, body → derived title/snippet mapping, tag add/remove); list search + tag-filter tests. *[manual: preview rendering fidelity against the shared-subset samples]*
@@ -405,8 +403,8 @@ Cloud sessions **can** run `./gradlew assembleDebug`, `testDebugUnitTest` (inclu
 **M6 — Contacts.** List with search + sticky headers (`#` bucket), detail with long-press copy, edit form with dynamic labeled phone/email rows + validation.
 *Accept:* `ContactListViewModel` tests (debounce, familyName-first section grouping incl. `#` bucket); edit-form validation test (at least one of first/last/organization); DAO search tests from M3 extended if the query changed.
 
-**M7 — Settings + lock polish.** Settings screen (Change passcode, Auto-lock, Lock now, About with blurb + licenses), change-passcode flow (VerifyCurrent → EnterNew → Confirm with visible wrong-code feedback), auto-lock timeout end-to-end, clear-display-and-buffer on lock/onStop-while-locked.
-*Accept:* `ChangePasscodeFlow` state-machine test (verify-current wrong → **visible error, stays in VerifyCurrent**, unlimited retries; capture/confirm mismatch → restarts EnterNew; cancel → old passcode intact; success → new hash verifies, old fails); auto-lock timeout unit test; clear-on-lock test in `CalculatorViewModel`. *[manual: Lock now, backgrounding/recents lock behavior, mid-passcode background → clean display on return]*
+**M7 — Settings + lock polish.** Settings screen (Change passcode, Lock now, About with blurb + licenses), change-passcode flow (VerifyCurrent → EnterNew → Confirm with visible wrong-code feedback), immediate lock-on-background end-to-end, clear-display-and-buffer on lock/onStop-while-locked.
+*Accept:* `ChangePasscodeFlow` state-machine test (verify-current wrong → **visible error, stays in VerifyCurrent**, unlimited retries; capture/confirm mismatch → restarts EnterNew; cancel → old passcode intact; success → new hash verifies, old fails); immediate-lock-on-onStop unit test; clear-on-lock test in `CalculatorViewModel`. *[manual: Lock now, backgrounding/recents lock behavior, mid-passcode background → clean display on return]*
 
 **M8 — Hardening & release prep.** Orphan-file sweep hookup, process-death review (§8.1 checklist), R8 config incl. the release Log-stripping rule (§8.6), backup-rules verification, launcher identity finalized (**"Calculator+"** label + neutral non-trademark calculator icon per the idea plan — already fixed, not an open call), version 1.0.0.
 *Accept:* `assembleRelease` (minified) green; full unit suite green; manual device pass of the §8 checklist incl. recents-thumbnail verification from every tab.
@@ -420,12 +418,12 @@ Cloud sessions **can** run `./gradlew assembleDebug`, `testDebugUnitTest` (inclu
 - `CalculatorEngine` — the highest-value suite; table-driven cases for arithmetic, formatting, error states, and the idea plan's shared cross-platform input→display sequence table (DoD item).
 - `KeySequenceRecorder` / `PasscodeMatcher` / `Pbkdf2` / `KeystoreWrapper` — capture, clear, 32-key cap + overflow flag, match/no-match, sub-minimum skip, canonical-ID normalization, deterministic vectors, tampered-salt fails, wrap/unwrap round-trip + fallback path.
 - `NoteDerivation` — the idea plan's shared title/snippet derivation example table (markdown-stripped first line, checklist markers, blank-body fallback).
-- `AppLockManager` — default state, sync-resolved NeedsSetup/Locked at construction, lock/unlock transitions, monotonic timeout arithmetic, suppression flag + hard cap, clear-transient-input on lock.
+- `AppLockManager` — default state, sync-resolved NeedsSetup/Locked at construction, lock/unlock transitions, immediate lock on onStop, suppression flag + monotonic hard-cap arithmetic, clear-transient-input on lock.
 - ViewModels — coroutine tests with fake repositories, `kotlinx-coroutines-test` + Turbine for `StateFlow` assertions (incl. autosave debounce/flush and import-survives-lock orchestration).
 
 **DAO tests — Robolectric + in-memory Room (JVM, run in cloud).** Chosen over instrumented tests precisely because cloud sessions have no emulator: `Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), …).allowMainThreadQueries()` under Robolectric runs in `testDebugUnitTest`. *Note:* Robolectric's SQLite is a real native SQLite, so query semantics are faithful; still, one instrumented mirror of the DAO suite lives in `androidTest/` to run on a physical device before release (manual step, M8).
 
-**Stays manual (no emulator in cloud):** photo picker round-trip incl. lock-suppression behavior, pinch-zoom feel, FLAG_SECURE screenshot/recents behavior from every tab, process-death lock restore (`adb shell am kill`), auto-lock timing feel, markdown rendering fidelity, back-stack navigation feel.
+**Stays manual (no emulator in cloud):** photo picker round-trip incl. lock-suppression behavior, pinch-zoom feel, FLAG_SECURE screenshot/recents behavior from every tab, process-death lock restore (`adb shell am kill`), immediate lock on backgrounding, markdown rendering fidelity, back-stack navigation feel.
 
 ---
 

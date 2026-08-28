@@ -169,28 +169,27 @@ Notes:
 
 ### 2.5 Re-lock model
 
-There is exactly **one auto-lock model** in iteration 1: **background grace**. Foreground use never auto-locks — there is **no foreground idle timer** in iteration 1 (a documented simplification: reading a note or looking at a photo without touching the screen must not lock the vault).
+There is exactly **one auto-lock model** in iteration 1: **immediate lock on backgrounding**. There is no configurable grace period and no timeout picker — the moment the app leaves the foreground, it locks (the sole, closed exception is §2.5.1's app-initiated system UI). Foreground use never auto-locks — there is **no foreground idle timer** in iteration 1 (a documented simplification: reading a note or looking at a photo without touching the screen must not lock the vault).
 
 The app transitions `UNLOCKED → LOCKED` (calculator shown) when:
 
-1. **Backgrounding beyond the grace period:** when the app leaves the foreground, a grace timer starts. If time-out-of-foreground exceeds the Auto-lock setting, the app is locked (at expiry or on return, whichever the platform can enforce — fail closed: if in doubt, locked). Settings options: **Immediately / 1 minute / 5 minutes — default: Immediately.** "Never" is not offered in iteration 1. Returning within the window keeps the vault open.
-   - Elapsed background time is measured with **monotonic clocks** (Android `elapsedRealtime`, iOS `systemUptime`-equivalents) — never wall-clock time, which the user can change. If the monotonic reading is unavailable or inconsistent (e.g. reboot), **fail closed: lock.**
+1. **Backgrounding:** the moment the app leaves the foreground (home, app switcher, another app taking over), it locks — unconditionally, with no delay and no setting to change this (fail closed: if the platform cannot determine whether it left the foreground, locked). The only exception is an in-flight app-initiated system presentation per §2.5.1, whose hard cap is measured with **monotonic clocks** (Android `elapsedRealtime`, iOS `systemUptime`-equivalents) — never wall-clock time, which the user can change; if the monotonic reading is unavailable or inconsistent (e.g. reboot), **fail closed: lock.**
 2. **Manual lock:** a **"Lock now"** action in Settings on **both platforms** (platform plans may add an additional affordance, but Settings → Lock now is mandatory and identical).
 3. **Process death / crash / device restart:** by construction — locked is the launch default.
 
 On **every** lock transition, the calculator display state and the attempt buffer are cleared (so the resumed lock screen is a pristine calculator).
 
-Snapshot protection is a separate, always-on mechanism independent of the lock decision — see §6 (the app-switcher image must never show vault content even when the grace period keeps the vault unlocked).
+Snapshot protection is a separate, always-on mechanism independent of the lock decision — see §6 (the app-switcher image must never show vault content, including during a §2.5.1 suppression window where the vault is still unlocked).
 
 #### 2.5.1 Auto-lock suppression for app-initiated system UI
 
-Backgrounding-to-lock collides with system UI the app itself launches: the system photo picker (Android Photo Picker fully backgrounds the app; iOS presentation styles and permission sheets resign active). Without an exemption, every photo import with the default "Immediately" setting would lock the vault mid-flow. Therefore:
+Immediate lock-on-background collides with system UI the app itself launches: the system photo picker (Android Photo Picker fully backgrounds the app; iOS presentation styles and permission sheets resign active). Without an exemption, every photo import would lock the vault mid-flow. Therefore:
 
 - When the app **initiates** a system presentation — the photo picker, or an OS permission dialog — it sets an **in-flight flag** before launching it. While the flag is set, the background-lock trigger is **suspended** for that round-trip.
 - **Hard cap:** the exemption lasts at most **2 minutes of backgrounded time** (measured on the monotonic clock; same value on both platforms). If the app remains backgrounded beyond the cap — the user wandered off inside the picker or switched apps — the app locks anyway. Fail closed.
 - The flag is cleared when the presentation returns its result (or is cancelled).
 - **If the lock happened anyway** (cap exceeded, or process death) while a picker result was pending: the **import still completes at the repository level**, keyed by the target album id — the copy-into-vault operation must not depend on vault UI being composed. The user returns to the calculator; after re-unlocking, the imported photos are in the album. No vault UI, data, or confirmation is ever shown while locked.
-- The exemption list is closed: **only app-initiated pickers and permission dialogs**. User-initiated backgrounding (home, app switcher, incoming call takeover) always follows the normal grace model. Both platform plans must enumerate exactly which presentations they exempt.
+- The exemption list is closed: **only app-initiated pickers and permission dialogs**. User-initiated backgrounding (home, app switcher, incoming call takeover) always locks immediately. Both platform plans must enumerate exactly which presentations they exempt.
 
 ### 2.6 Forgotten passcode — iteration 1 policy
 
@@ -320,12 +319,11 @@ Full CRUD, all local. **No import from system contacts in iteration 1** (require
 
 ### 3.4 Settings
 
-**Iteration-1 items (exactly these four):**
+**Iteration-1 items (exactly these three):**
 
 1. **Change passcode** — flow per §2.7 (VerifyCurrent → EnterNew → Confirm, on a calculator keypad, with visible wrong-current-code feedback).
-2. **Auto-lock** — picker: **Immediately (default) / 1 minute / 5 minutes** of backgrounded time before lock (§2.5).
-3. **Lock now** — immediate manual lock (§2.5).
-4. **About** — app version/build, a short privacy statement ("All data stays on this device. SafeBox has no servers and sends nothing anywhere."), a short how-it-works blurb, and the no-recovery warning restated. (Android additionally lists open-source licenses for its third-party libraries; iOS iteration 1 has none — a noted, accepted asymmetry.)
+2. **Lock now** — immediate manual lock (§2.5). There is no auto-lock setting: locking on backgrounding is always immediate and not configurable (§2.5).
+3. **About** — app version/build, a short privacy statement ("All data stays on this device. SafeBox has no servers and sends nothing anywhere."), a short how-it-works blurb, and the no-recovery warning restated. (Android additionally lists open-source licenses for its third-party libraries; iOS iteration 1 has none — a noted, accepted asymmetry.)
 
 **No biometric row in iteration 1** — not as a toggle, not as "coming soon" (dead UI is odd product surface and pre-commits an unresolved design; see §5 for the recorded scope decision and open questions).
 
@@ -423,7 +421,7 @@ Parameters per §2.2: PBKDF2-HMAC-SHA256, 600,000 iterations, 16-byte salt, over
 ### AppSettings (database or platform preferences)
 | Field | Iteration |
 |---|---|
-| autoLockOption (enum: immediately (default), 1min, 5min) | 1 |
+| autoLockGraceOption (a configurable grace period before lock; iteration 1 always locks immediately on backgrounding, §2.5) | future |
 | installSentinel (iOS only: app-container marker; absence at launch ⇒ wipe SafeBox Keychain items ⇒ `FRESH_INSTALL` — see §2.6) | 1 |
 | isSetupComplete (**derived, never stored as an independent flag**: passcode record present AND — on iOS — install sentinel present) | 1 |
 | disguiseTheme (enum) | future |
@@ -435,18 +433,19 @@ Parameters per §2.2: PBKDF2-HMAC-SHA256, 600,000 iterations, 16-byte salt, over
 ### Iteration 1 — the skeleton with full local persistence (THIS PLAN)
 
 **In scope:**
-- Fully functional calculator lock screen with the exact state machines and behavior spec of §2 (calculator semantics + shared sequence table, setup with overflow/backgrounding rules, silent unlock, single background-grace re-lock model with picker suppression, change-passcode flow, no recovery).
+- Fully functional calculator lock screen with the exact state machines and behavior spec of §2 (calculator semantics + shared sequence table, setup with overflow/backgrounding rules, silent unlock, immediate lock-on-background with picker suppression, change-passcode flow, no recovery).
 - Passcode stored per the pinned scheme (§2.2) in Keychain / Keystore-wrapped storage, with the iOS install sentinel (§2.6).
 - Gallery: albums CRUD (card grid, derived covers), photo import via system picker into app-private storage (still images, original bytes, thumbnails at import), grid, full-screen viewer with swipe + shared zoom constants, delete/move with file deletion + orphan sweep.
 - Notes: list with derived title/snippet/date, search (title+body), markdown editor (shared subset, checklists as styled text), tags with colorIndex + tag filtering, 1 s autosave + flush-on-exit, CRUD (swipe-delete with confirm, no undo).
 - Contacts: alphabetical searchable list (familyName-first, `#` bucket), detail with long-press copy (no tel:/mailto handoff), full CRUD with multiple labeled phones/emails, address, organization-only contacts.
-- Settings: Change passcode, Auto-lock (Immediately/1 min/5 min), Lock now, About.
+- Settings: Change passcode, Lock now, About.
 - Real local database (SwiftData / Room), app-private file storage for photos, snapshot protection (§6), backup exclusion (§6), no-logging rule (§6).
 
 **Explicitly OUT of scope for iteration 1 (do not build, do not partially build):**
 - Encryption-at-rest beyond OS file protection (SQLCipher-style DB encryption, per-file photo encryption) — iteration 2+.
 - **Biometric unlock (Face ID / fingerprint) — iteration 2.** *Recorded scope decision:* the original iteration-1 sketch listed a biometric toggle in Settings; it is deliberately moved out of iteration 1 (this document is the sign-off). Reasons: (a) the disguise question is unresolved — an **automatic biometric prompt on foregrounding** announces the app is not a calculator, while a **hidden manual trigger** (e.g. long-press on the display) preserves the disguise but is undiscoverable; the two drafts diverged on exactly this, and shipping either without deciding cements the wrong UX; (b) a dead "coming soon" toggle is poor product surface. **Open questions carried to iteration 2:** auto-prompt (opt-in, disclosed) vs hidden gesture; behavior on biometric failure/cancel (must stay silent calculator); availability gating and toggle visibility on devices without enrolled biometrics; platform authenticator-class constraints. No biometric UI of any kind ships in iteration 1.
 - Foreground idle auto-lock timer — iteration 2 candidate (§2.5 documents the simplification).
+- Configurable auto-lock grace period (e.g. 1 min / 5 min of backgrounded time before lock) — iteration 1 always locks immediately on backgrounding (§2.5).
 - EXIF/metadata stripping on import — iteration 2 option (§3.1).
 - Interactive (tappable) note checklists — iteration 2 (§3.2).
 - Decoy passcode (second code opening a fake/secondary vault) — iteration 2+.
@@ -478,7 +477,7 @@ Biometrics (with the open questions above); encryption-at-rest; decoy passcode; 
 - Rationale: iteration 1 data is not encrypted at rest beyond OS protection, so it must not propagate to backups or device transfers.
 
 **Snapshot/app-switcher protection — per-platform mechanisms, documented as a deliberate divergence:**
-- **iOS:** a **calculator-face (or opaque) cover view installed in `willResignActive`** and removed on `didBecomeActive` — *independent of the lock decision* (it must also cover Control Center pulls, notification shade, incoming-call banners, and the grace window where the vault stays unlocked). iOS **cannot block screenshots**; a user-taken screenshot of on-screen vault content is accepted as out of scope.
+- **iOS:** a **calculator-face (or opaque) cover view installed in `willResignActive`** and removed on `didBecomeActive` — *independent of the lock decision* (it must also cover Control Center pulls, notification shade, incoming-call banners, and a §2.5.1 suppression window where the vault stays unlocked). iOS **cannot block screenshots**; a user-taken screenshot of on-screen vault content is accepted as out of scope.
 - **Android:** **unconditional activity-level `FLAG_SECURE`** — screenshots and screen recording are blocked app-wide, *including the calculator*, and the recents card is blank. The blank recents card is a mild tell and is **accepted**: per-screen toggling of `FLAG_SECURE` is racy (the recents thumbnail is captured around `onPause`, often before any recomposition lands) and an unreliable disguise is worse than a blank card.
 - Verifying the app-switcher/recents image after backgrounding from every tab is a DoD item (§8).
 
@@ -527,9 +526,9 @@ A platform build is DONE when every item below passes on a physical device:
 3. After setup, every subsequent launch shows a pure calculator with no banner or any vault indication.
 4. Entering the stored key sequence and pressing `=` unlocks in ≤ 300 ms; any other committed sequence — including sub-4-key and **overflowed (>32-key) attempts, which silently never match** — just shows the arithmetic result with zero behavioral tells (no delay difference, no flicker; verification runs off the UI path).
 5. A passcode containing at least one symbol key (e.g. `7 + 7 %`) sets, confirms, and unlocks correctly.
-6. **Auto-lock follows the single background-grace model of §2.5:** with the default "Immediately", backgrounding and returning shows the calculator; with "1 min"/"5 min", returning within the window keeps the vault open and returning after it shows the calculator; elapsed time is measured with a monotonic clock (changing the wall clock in the background does not defeat it); foreground use never auto-locks. Force-quit → relaunch is locked. Locking clears the calculator display and attempt buffer.
-7. **The app-switcher/recents image never shows vault content, verified after backgrounding from every tab** (iOS: cover view from `willResignActive`; Android: blank recents via activity-level `FLAG_SECURE`) — per §6, including during an unlocked grace window.
-8. **Picker round-trip does not break the vault (§2.5.1):** starting a photo import with Auto-lock = Immediately, picking photos, and returning lands back in the vault with the import completed; if the suppression cap is exceeded and the app locked, the import still completes at the repository level and the photos are present after re-unlock, with no vault UI shown while locked.
+6. **Auto-lock follows the immediate-lock model of §2.5:** backgrounding the app and returning — however briefly — shows the calculator (no grace period, no setting); the only unlocked round-trip is §2.5.1's app-initiated system UI, whose hard cap is measured with a monotonic clock (changing the wall clock in the background does not defeat it); foreground use never auto-locks. Force-quit → relaunch is locked. Locking clears the calculator display and attempt buffer.
+7. **The app-switcher/recents image never shows vault content, verified after backgrounding from every tab** (iOS: cover view from `willResignActive`; Android: blank recents via activity-level `FLAG_SECURE`) — per §6, including during a §2.5.1 suppression window.
+8. **Picker round-trip does not break the vault (§2.5.1):** starting a photo import, picking photos, and returning lands back in the vault with the import completed; if the suppression cap is exceeded and the app locked, the import still completes at the repository level and the photos are present after re-unlock, with no vault UI shown while locked.
 9. The passcode is not recoverable from the app bundle, database, preferences files, or logs (stored only per the §2.2 pinned scheme: PBKDF2-HMAC-SHA256/600k/16-byte salt in Keychain/Keystore-wrapped storage; no lock internals in any log); uninstall → reinstall lands in `FRESH_INSTALL` with no stale unlock possible (iOS: install-sentinel wipe of Keychain items, §2.6).
 
 **Gallery**
@@ -549,7 +548,7 @@ A platform build is DONE when every item below passes on a physical device:
 
 **Settings**
 19. Change passcode follows §2.7: wrong current code shows a **visible** "incorrect" error with unlimited retries; new-code entry enforces the same rules as setup; on success the old code stops unlocking immediately.
-20. Auto-lock options (Immediately default / 1 min / 5 min) function as configured; Lock Now locks instantly; About shows version, the privacy + no-recovery statements, and the how-it-works blurb. **No biometric UI is present anywhere.**
+20. There is no auto-lock setting anywhere in the UI (backgrounding always locks immediately, per criterion 6); Lock Now locks instantly; About shows version, the privacy + no-recovery statements, and the how-it-works blurb. **No biometric UI is present anywhere.**
 
 **Non-functional**
 21. All data persists across app restarts and device reboots (real database + files, not memory).
