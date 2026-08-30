@@ -450,7 +450,7 @@ Parameters per §2.2: PBKDF2-HMAC-SHA256, 600,000 iterations, 16-byte salt, over
 - Interactive (tappable) note checklists — iteration 2 (§3.2).
 - Decoy passcode (second code opening a fake/secondary vault) — iteration 2+.
 - Break-in alerts / intruder selfie / failed-attempt logging — iteration 2+.
-- Alternate disguises (unit converter, clock, etc.) and disguise theming — iteration 2+.
+- Alternate disguises (unit converter, clock, etc.) and disguise theming — iteration 2+. The pluggable disguise abstraction that enables this is designed (design-only) in `docs/plans/disguise-skeleton-plan.md`.
 - Import/export, sharing out of the vault, "delete original after import" — iteration 2+.
 - Cloud backup/sync of any kind — iteration 3+ at earliest, and only with end-to-end encryption.
 - System contacts import; dial/email handoff from contact detail — iteration 2+.

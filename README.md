@@ -13,6 +13,8 @@ Planning. Iteration 1 (native skeleton with full local persistence) is specified
 | [Idea plan](docs/plans/idea-plan.md) | Platform-neutral product plan — source of truth for behavior, the calculator-lock state machines, and the domain model |
 | [iOS plan](docs/plans/ios-plan.md) | Swift / SwiftUI / SwiftData implementation plan for the app under `ios/` |
 | [Android plan](docs/plans/android-plan.md) | Kotlin / Jetpack Compose / Room implementation plan for the app under `android/` |
+| [Disguise skeleton plan](docs/plans/disguise-skeleton-plan.md) | Design of the pluggable disguise abstraction (design-only; the seam lands in iteration 2 with the calculator as disguise #1) |
+| [Calculator disguise design](docs/plans/calculator-disguise-design.md) | Design authority for the iteration-1 calculator lock screen: layout, visual system, interaction, motion, copy, accessibility, believability |
 
 ## Repository layout
 
