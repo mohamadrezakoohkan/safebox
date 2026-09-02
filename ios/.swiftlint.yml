@@ -1,0 +1,12 @@
+included:
+  - SafeBox
+  - SafeBoxTests
+disabled_rules:
+  - line_length
+  - identifier_name
+  - type_body_length
+  - file_length
+  - function_body_length
+  - cyclomatic_complexity
+  - todo
+opt_in_rules: []

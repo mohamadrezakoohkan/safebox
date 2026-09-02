@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Neutral, original calculator glyph — deliberately not imitating any
+     vendor's calculator icon (idea plan §1). Mirrors the iOS icon artwork. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- display bar -->
+    <path
+        android:fillColor="#2A2D33"
+        android:pathData="M31,28 h46 a4,4 0 0 1 4,4 v8 a4,4 0 0 1 -4,4 h-46 a4,4 0 0 1 -4,-4 v-8 a4,4 0 0 1 4,-4 z" />
+    <path
+        android:fillColor="#F5F6F7"
+        android:pathData="M63,33 h13 a2.5,2.5 0 0 1 2.5,2.5 v1 a2.5,2.5 0 0 1 -2.5,2.5 h-13 a2.5,2.5 0 0 1 -2.5,-2.5 v-1 a2.5,2.5 0 0 1 2.5,-2.5 z" />
+    <!-- key grid: 4 columns x 3 rows, operator column amber -->
+    <path android:fillColor="#43484F" android:pathData="M27,50 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M41,50 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M55,50 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#B45309" android:pathData="M69,50 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M27,64 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M41,64 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M55,64 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#B45309" android:pathData="M69,64 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M27,78 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M41,78 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#43484F" android:pathData="M55,78 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+    <path android:fillColor="#B45309" android:pathData="M69,78 h8 a2,2 0 0 1 2,2 v6 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-6 a2,2 0 0 1 2,-2 z" />
+</vector>

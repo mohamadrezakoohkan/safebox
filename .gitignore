@@ -1,0 +1,22 @@
+# Xcode
+ios/*.xcodeproj
+ios/*.xcworkspace
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Android / Gradle
+.gradle/
+local.properties
+*.apk
+*.aab
+captures/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+
+# macOS
+.DS_Store

@@ -1,0 +1,31 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build & test
+        working-directory: ios
+        run: |
+          xcodebuild test \
+            -project SafeBox.xcodeproj \
+            -scheme SafeBox \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            | xcbeautify --renderer github-actions || \
+          xcodebuild test \
+            -project SafeBox.xcodeproj \
+            -scheme SafeBox \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro'

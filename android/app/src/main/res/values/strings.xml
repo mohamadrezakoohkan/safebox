@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Disguise identity: launcher label (idea plan §1). -->
+    <string name="app_name">Calculator+</string>
+
+    <!-- Copy table (calculator-disguise-design §6) — string IDs shared with iOS. -->
+    <string name="setup_entry_banner">Set your secret code: type it on the keypad, then press =</string>
+    <string name="setup_entry_hint">Best: 6+ keys with a symbol (+ − × ÷ % ± .), and not a sum someone might really type.</string>
+    <string name="setup_too_short">Too short — use at least 4 keys</string>
+    <string name="setup_too_long">Too long — start again (max 32 keys)</string>
+    <string name="setup_confirm_banner">Re-enter the same code, then press =</string>
+    <string name="setup_mismatch">Codes didn\'t match — start again</string>
+    <string name="setup_trivial_warning">Easy to guess — re-enter it to keep it anyway, or enter a different code and press = to start over.</string>
+    <string name="setup_no_recovery_title">Remember your code</string>
+    <string name="setup_no_recovery_body">There is no way to recover this code. If you forget it, your vault contents cannot be retrieved.</string>
+    <string name="setup_no_recovery_button">I understand</string>
+    <string name="verify_current_caption">Enter your current code, then press =</string>
+    <string name="verify_error">Incorrect code — try again</string>
+    <string name="change_enter_new_caption">Enter your new code, then press =</string>
+    <string name="change_confirm_caption">Re-enter the new code, then press =</string>
+    <string name="change_success">Code changed</string>
+    <string name="change_cancel">Cancel</string>
+    <string name="settings_change_title">Change passcode</string>
+
+    <!-- Erase everything (nuke) -->
+    <string name="nuke_row_title">Erase everything</string>
+    <string name="nuke_row_subtitle">Delete all vault content and the passcode. The app starts over.</string>
+    <string name="nuke_confirm_title">Erase everything?</string>
+    <string name="nuke_confirm_body">This permanently deletes every photo, note, and contact in the vault and removes your passcode. The app returns to its just-installed state.</string>
+    <string name="nuke_confirm_continue">Continue</string>
+    <string name="nuke_final_title">Last chance</string>
+    <string name="nuke_final_body">All vault content will be destroyed immediately. There is no undo and no recovery.</string>
+    <string name="nuke_final_erase">Erase everything</string>
+
+    <!-- First-run guide (also returns after an erase) -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Set my code</string>
+    <string name="onboarding_page1_title">Looks like a calculator</string>
+    <string name="onboarding_page1_body">Calculator+ is a fully working calculator on the surface. Anyone who opens it sees exactly that — and nothing else.</string>
+    <string name="onboarding_page2_title">Secretly, it\'s your vault</string>
+    <string name="onboarding_page2_body">Everything stays on this device. No account, no cloud, no sync.</string>
+    <string name="onboarding_page2_photos">Photos</string>
+    <string name="onboarding_page2_photos_sub">Private albums, imported from your library</string>
+    <string name="onboarding_page2_notes">Notes</string>
+    <string name="onboarding_page2_notes_sub">Rich text with tags and live preview</string>
+    <string name="onboarding_page2_contacts">Contacts</string>
+    <string name="onboarding_page2_contacts_sub">People only you know about</string>
+    <string name="onboarding_page3_title">Your code is a key sequence</string>
+    <string name="onboarding_page3_body">Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved.</string>
+    <string name="onboarding_page3_try">Tap at least 4 keys</string>
+    <string name="onboarding_page3_ok">That would work — symbols make it stronger</string>
+    <string name="onboarding_page3_clear">Reset</string>
+    <string name="onboarding_page4_title">Press = to enter</string>
+    <string name="onboarding_page4_body">To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden.</string>
+    <string name="onboarding_page4_warning">There is no recovery. If you forget your code, the vault stays locked forever.</string>
+</resources>

@@ -1,0 +1,512 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "change_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "change_confirm_caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-enter the new code, then press ="
+          }
+        }
+      }
+    },
+    "change_enter_new_caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your new code, then press ="
+          }
+        }
+      }
+    },
+    "change_success": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code changed"
+          }
+        }
+      }
+    },
+    "nuke_confirm_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This permanently deletes every photo, note, and contact in the vault and removes your passcode. The app returns to its just-installed state."
+          }
+        }
+      }
+    },
+    "nuke_confirm_continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "nuke_confirm_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase everything?"
+          }
+        }
+      }
+    },
+    "nuke_final_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All vault content will be destroyed immediately. There is no undo and no recovery."
+          }
+        }
+      }
+    },
+    "nuke_final_erase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase everything"
+          }
+        }
+      }
+    },
+    "nuke_final_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last chance"
+          }
+        }
+      }
+    },
+    "nuke_row_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all vault content and the passcode. The app starts over."
+          }
+        }
+      }
+    },
+    "nuke_row_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erase everything"
+          }
+        }
+      }
+    },
+    "onboarding_next": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        }
+      }
+    },
+    "onboarding_page1_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculator+ is a fully working calculator on the surface. Anyone who opens it sees exactly that — and nothing else."
+          }
+        }
+      }
+    },
+    "onboarding_page1_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks like a calculator"
+          }
+        }
+      }
+    },
+    "onboarding_page2_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything stays on this device. No account, no cloud, no sync."
+          }
+        }
+      }
+    },
+    "onboarding_page2_contacts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contacts"
+          }
+        }
+      }
+    },
+    "onboarding_page2_contacts_sub": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People only you know about"
+          }
+        }
+      }
+    },
+    "onboarding_page2_notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes"
+          }
+        }
+      }
+    },
+    "onboarding_page2_notes_sub": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rich text with tags and live preview"
+          }
+        }
+      }
+    },
+    "onboarding_page2_photos": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos"
+          }
+        }
+      }
+    },
+    "onboarding_page2_photos_sub": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Private albums, imported from your library"
+          }
+        }
+      }
+    },
+    "onboarding_page2_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Secretly, it's your vault"
+          }
+        }
+      }
+    },
+    "onboarding_page3_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved."
+          }
+        }
+      }
+    },
+    "onboarding_page3_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset"
+          }
+        }
+      }
+    },
+    "onboarding_page3_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That would work — symbols make it stronger"
+          }
+        }
+      }
+    },
+    "onboarding_page3_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your code is a key sequence"
+          }
+        }
+      }
+    },
+    "onboarding_page3_try": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap at least 4 keys"
+          }
+        }
+      }
+    },
+    "onboarding_page4_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden."
+          }
+        }
+      }
+    },
+    "onboarding_page4_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press = to enter"
+          }
+        }
+      }
+    },
+    "onboarding_page4_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no recovery. If you forget your code, the vault stays locked forever."
+          }
+        }
+      }
+    },
+    "onboarding_skip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip"
+          }
+        }
+      }
+    },
+    "onboarding_start": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set my code"
+          }
+        }
+      }
+    },
+    "settings_change_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change passcode"
+          }
+        }
+      }
+    },
+    "setup_confirm_banner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-enter the same code, then press ="
+          }
+        }
+      }
+    },
+    "setup_entry_banner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set your secret code: type it on the keypad, then press ="
+          }
+        }
+      }
+    },
+    "setup_entry_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Best: 6+ keys with a symbol (+ − × ÷ % ± .), and not a sum someone might really type."
+          }
+        }
+      }
+    },
+    "setup_mismatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codes didn't match — start again"
+          }
+        }
+      }
+    },
+    "setup_no_recovery_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no way to recover this code. If you forget it, your vault contents cannot be retrieved."
+          }
+        }
+      }
+    },
+    "setup_no_recovery_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I understand"
+          }
+        }
+      }
+    },
+    "setup_no_recovery_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remember your code"
+          }
+        }
+      }
+    },
+    "setup_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too long — start again (max 32 keys)"
+          }
+        }
+      }
+    },
+    "setup_too_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too short — use at least 4 keys"
+          }
+        }
+      }
+    },
+    "setup_trivial_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Easy to guess — re-enter it to keep it anyway, or enter a different code and press = to start over."
+          }
+        }
+      }
+    },
+    "verify_current_caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your current code, then press ="
+          }
+        }
+      }
+    },
+    "verify_error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incorrect code — try again"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
