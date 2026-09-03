@@ -6,6 +6,9 @@ import UIKit
 struct ContactDetailScreen: View {
     let contact: Contact
     let repository: any ContactRepository
+    /// The list screen performs the soft delete and posts the undo toast; this
+    /// screen only dismisses afterwards.
+    let onDelete: (Contact) -> Void
     var onChanged: () -> Void = {}
 
     @State private var showEdit = false
@@ -70,14 +73,15 @@ struct ContactDetailScreen: View {
                                                                   repository: repository))
             }
         }
-        .confirmationDialog("Delete this contact? This cannot be undone.",
+        .confirmationDialog(VaultCopy.confirmDeleteContact,
                             isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                try? repository.delete(contact)
-                onChanged()
+            Button(VaultCopy.deleteAction, role: .destructive) {
+                onDelete(contact)
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(VaultCopy.cancelAction, role: .cancel) {}
+        } message: {
+            Text(VaultCopy.confirmDeleteBodyTrash)
         }
         .overlay {
             if copiedValue != nil {

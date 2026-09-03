@@ -1,10 +1,18 @@
 package com.calcplus.calculator.core.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.calcplus.calculator.core.domain.model.MediaType
 import kotlinx.serialization.Serializable
+
+// Schema v2 (iteration-2-decisions §0): every user entity carries a nullable
+// `deletedAt` (epoch millis; non-null = in "Recently deleted"), and photos
+// gained `mediaType` / `durationMs` for N3. All new columns have Kotlin
+// defaults so positional constructors written against v1 keep compiling, and
+// NOT NULL columns also declare the SQL default the migration writes.
 
 @Entity(tableName = "albums")
 data class AlbumEntity(
@@ -12,7 +20,9 @@ data class AlbumEntity(
     val name: String,
     val createdAt: Long,
     val sortIndex: Int,
-    // No coverPhotoId: the album cover is derived (first photo by sortIndex).
+    // No coverPhotoId: the album cover is derived (first live photo by sortIndex).
+    /** Soft-delete stamp; the same instant is written onto the album's live photos. */
+    val deletedAt: Long? = null,
 )
 
 @Entity(
@@ -38,6 +48,12 @@ data class PhotoEntity(
     val byteCount: Long,
     val importedAt: Long,
     val sortIndex: Int,        // import order; grid ordering key
+    /** Soft-delete stamp (epoch millis). Files survive until purge. */
+    val deletedAt: Long? = null,
+    /** [MediaType.PHOTO] or [MediaType.VIDEO] (N3). One table for mixed media. */
+    @ColumnInfo(defaultValue = MediaType.PHOTO) val mediaType: String = MediaType.PHOTO,
+    /** Videos only (N3); null for photos. */
+    val durationMs: Long? = null,
 )
 
 @Entity(tableName = "notes")
@@ -48,6 +64,8 @@ data class NoteEntity(
     val snippet: String, // DERIVED, denormalized (NoteDerivation)
     val createdAt: Long,
     val updatedAt: Long,
+    /** Soft-delete stamp (epoch millis). Tag cross-refs survive until purge. */
+    val deletedAt: Long? = null,
 )
 
 @Entity(
@@ -102,6 +120,8 @@ data class ContactEntity(
     val notes: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Soft-delete stamp (epoch millis). */
+    val deletedAt: Long? = null,
     // Invariant (enforced in the edit ViewModel/repository): at least one of
     // firstName / lastName / organization is non-blank.
 )

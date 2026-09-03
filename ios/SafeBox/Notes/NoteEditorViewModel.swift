@@ -10,6 +10,10 @@ final class NoteEditorViewModel {
     var draftBody: String
     var showPreview = false
     private(set) var allTags: [Tag] = []
+    /// Set by `delete()`. Once the note is in the trash the editor must not
+    /// touch it again — the `onDisappear` flush that follows the dismiss would
+    /// otherwise write the draft into a trashed row.
+    private(set) var isDeleted = false
 
     private var autosaveTask: Task<Void, Never>?
 
@@ -34,6 +38,7 @@ final class NoteEditorViewModel {
     func flush() {
         autosaveTask?.cancel()
         autosaveTask = nil
+        guard !isDeleted else { return }
         try? repository.save(note: note, body: draftBody)
     }
 
@@ -67,9 +72,12 @@ final class NoteEditorViewModel {
         allTags = repository.tags()
     }
 
+    /// Soft delete. Flushes the pending draft FIRST, so an Undo from the toast
+    /// restores exactly the text that was on screen (not the last autosave),
+    /// then freezes the editor so no later flush can reach the trashed note.
     func delete() {
-        autosaveTask?.cancel()
-        autosaveTask = nil
+        flush()
+        isDeleted = true
         try? repository.delete(note: note)
     }
 }

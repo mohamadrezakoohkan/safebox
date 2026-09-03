@@ -17,6 +17,28 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SettingsRoute
 @Serializable object ChangePasscodeRoute
+/** Settings → Privacy detail (decisions §5). */
+@Serializable object PrivacyRoute
+/**
+ * Settings → "Recently deleted" (decisions §3). A normal detail route inside
+ * the Settings tab graph: the bottom bar stays visible for it.
+ */
+@Serializable object TrashRoute
+/**
+ * Settings → "How it works": the onboarding guide in revisit mode, full-screen
+ * with the bottom bar hidden. Lives inside the Settings tab graph, so it is
+ * reachable only from the unlocked vault by construction (decisions §5).
+ */
+@Serializable object GuideRoute
+
+/**
+ * Global search (decisions §7). A TOP-LEVEL route of the NavHost, not part of any
+ * tab graph: it is opened from three different tabs and, when a result is tapped,
+ * it has to hand navigation to any of the other three. Sitting above the start
+ * destination is also what lets the standard tab-switch `popUpTo(start)` dismiss
+ * it. The bottom bar is hidden while it — like [GuideRoute] — is on top.
+ */
+@Serializable object SearchRoute
 
 // Tab graph roots.
 @Serializable object GalleryTab

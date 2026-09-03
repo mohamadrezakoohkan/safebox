@@ -39,9 +39,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.calcplus.calculator.R
+import com.calcplus.calculator.app.LocalUndoController
+import com.calcplus.calculator.core.domain.repository.TrashItemKind
 import com.calcplus.calculator.di.AppContainer
 import kotlinx.coroutines.launch
 
@@ -58,6 +62,9 @@ fun ContactDetailScreen(
     }
     val contact by viewModel.contact.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
+    val undo = LocalUndoController.current
+    // Local host for the "Copied" confirmation only; the undo snackbar is the
+    // vault-wide one (it has to outlive this screen).
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -83,7 +90,10 @@ fun ContactDetailScreen(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back_action),
+                        )
                     }
                 },
                 actions = {
@@ -91,7 +101,10 @@ fun ContactDetailScreen(
                         Icon(Icons.Filled.Edit, contentDescription = "Edit")
                     }
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.delete_action),
+                        )
                     }
                 },
             )
@@ -146,16 +159,23 @@ fun ContactDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete contact") },
-            text = { Text("Delete this contact? This cannot be undone.") },
+            title = { Text(stringResource(R.string.confirm_delete_contact)) },
+            text = { Text(stringResource(R.string.confirm_delete_body_trash)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     viewModel.delete { onBack() }
-                }) { Text("Delete") }
+                    // This screen pops; the snackbar is hosted by VaultScaffold
+                    // and lands on the contacts list behind it.
+                    undo?.post(TrashItemKind.CONTACT, 1) {
+                        container.contactRepository.restore(listOf(contactId))
+                    }
+                }) { Text(stringResource(R.string.delete_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
             },
         )
     }

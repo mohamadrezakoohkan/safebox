@@ -77,14 +77,65 @@ class DaoTests {
         assertEquals("0-thumb.jpg", rows[0].coverThumbFileName) // derived cover
     }
 
+    /**
+     * Behavior intentionally changed in iteration 2 (decisions §3): this test
+     * used to assert that `delete` cascaded the photo ROWS away. Deleting is
+     * now a soft delete, and only `purge` cascades.
+     */
     @Test
-    fun albumDeleteCascadesPhotos() = runTest {
+    fun albumSoftDeleteHidesItAndPurgeCascadesTheRows() = runTest {
         val a = album("Gone")
         db.albumDao().insert(a)
         db.photoDao().insert(photo(a.id, 0))
         db.photoDao().insert(photo(a.id, 1))
-        db.albumDao().delete(a.id)
+
+        db.albumDao().softDelete(a.id, now = 1_000)
+        db.photoDao().softDeleteLiveInAlbum(a.id, now = 1_000)
+        // Hidden from every live query, but every row (and every file) is still there.
+        assertTrue(db.albumDao().albums().isEmpty())
+        assertTrue(db.photoDao().photos(a.id).isEmpty())
+        assertEquals(1, db.albumDao().allAlbums().size)
+        assertEquals(2, db.photoDao().allPhotos().size)
+        assertEquals(listOf(1_000L, 1_000L), db.photoDao().allPhotos().map { it.deletedAt })
+
+        db.albumDao().purge(listOf(a.id))
         assertTrue(db.photoDao().allPhotos().isEmpty()) // FK CASCADE
+        assertTrue(db.albumDao().allAlbums().isEmpty())
+    }
+
+    @Test
+    fun softDeleteIsIdempotentAndKeepsTheFirstStamp() = runTest {
+        val a = album("Keep the stamp")
+        db.albumDao().insert(a)
+        db.albumDao().softDelete(a.id, now = 500)
+        db.albumDao().softDelete(a.id, now = 900)
+        assertEquals(500L, db.albumDao().album(a.id)?.deletedAt)
+    }
+
+    @Test
+    fun albumCountsAndCoverIgnoreTrashedPhotos() = runTest {
+        val a = album("Trips")
+        db.albumDao().insert(a)
+        val first = photo(a.id, sortIndex = 0)
+        db.photoDao().insert(first)
+        db.photoDao().insert(photo(a.id, sortIndex = 1))
+        db.photoDao().softDelete(listOf(first.id), now = 10)
+
+        val rows = db.albumDao().observeAlbumsWithCounts().first()
+        assertEquals(1, rows[0].photoCount)                    // the trashed one does not count
+        assertEquals("1-thumb.jpg", rows[0].coverThumbFileName) // …and cannot be the cover
+    }
+
+    @Test
+    fun expiryQueriesSelectOnlyStampsAtOrBeforeTheCutoff() = runTest {
+        val old = album("old")
+        val fresh = album("fresh")
+        db.albumDao().insert(old)
+        db.albumDao().insert(fresh)
+        db.albumDao().softDelete(old.id, now = 100)
+        db.albumDao().softDelete(fresh.id, now = 300)
+        assertEquals(listOf(old.id), db.albumDao().expiredIds(cutoff = 200))
+        assertEquals(2, db.albumDao().expiredIds(cutoff = 300).size) // inclusive
     }
 
     @Test
@@ -126,9 +177,17 @@ class DaoTests {
         val withTags = db.noteDao().observeNoteWithTags(n1.id).first()
         assertEquals(listOf("work"), withTags?.tags?.map { it.name })
 
-        // Deleting the note removes cross-refs; the tag survives.
-        db.noteDao().delete(n1.id)
+        // Soft delete KEEPS the cross-ref, so a restored note keeps its tags…
+        db.noteDao().softDelete(listOf(n1.id), now = 5)
+        assertEquals(listOf("work"), db.noteDao().observeNoteWithTags(n1.id).first()?.tags?.map { it.name })
+        assertTrue(db.noteDao().observeNotes("").first().none { it.note.id == n1.id })
+        db.noteDao().restore(listOf(n1.id))
+        assertEquals(listOf("work"), db.noteDao().observeNoteWithTags(n1.id).first()?.tags?.map { it.name })
+
+        // …and only the purge removes cross-refs. The tag itself always survives.
+        db.noteDao().purge(listOf(n1.id))
         assertEquals(1, db.tagDao().all().size)
+        assertTrue(db.noteDao().observeNotesWithTag("", tag.id).first().isEmpty())
     }
 
     @Test
@@ -186,7 +245,12 @@ class DaoTests {
         val loaded = db.contactDao().observeContact(contact.id).first()
         assertEquals(contact.phones, loaded?.phones)
         assertEquals(contact.emails, loaded?.emails)
-        db.contactDao().deleteById(contact.id)
+        // Soft delete hides it from the list but keeps the row readable by id
+        // (the detail screen navigates away on its own); purge removes it.
+        db.contactDao().softDelete(listOf(contact.id), now = 7)
+        assertTrue(db.contactDao().observeContacts("").first().isEmpty())
+        assertEquals(7L, db.contactDao().observeContact(contact.id).first()?.deletedAt)
+        db.contactDao().purge(listOf(contact.id))
         assertNull(db.contactDao().observeContact(contact.id).first())
     }
 }

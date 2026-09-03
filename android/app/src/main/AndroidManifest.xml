@@ -1,5 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      The ONE permission the app declares (decisions §13). It exists solely for
+      the manual "Check for updates" row in Settings → About: a single bare GET
+      to the repo's version.json, made only when the user taps that row.
+      Accepted tell: INTERNET is visible in the OS app-info screen for what
+      presents itself as a calculator.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Media3 (N3) merges two <uses-permission> declarations of its own, for
+      network playback and for keeping the screen/CPU awake during background
+      playback. SafeBox plays only local vault files and never plays in the
+      background, so both are removed:
+        * ACCESS_NETWORK_STATE — the update check needs INTERNET and nothing
+          more; reading the network state would be a second, pointless tell
+          (`DefaultBandwidthMeter` /
+          `NetworkTypeObserver` catch the resulting SecurityException and report
+          "unknown network", which is the correct answer for a local file).
+        * WAKE_LOCK — only ever acquired for a wake mode other than
+          C.WAKE_MODE_NONE, and VaultVideoPage sets WAKE_MODE_NONE explicitly.
+      There is deliberately NO android:supportsPictureInPicture anywhere: PiP
+      would render vault video in a floating window outside the app.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
 
     <application
         android:name=".SafeBoxApplication"

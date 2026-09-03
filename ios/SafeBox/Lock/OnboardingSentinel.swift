@@ -15,6 +15,15 @@ enum OnboardingSentinel {
         defaults.set(true, forKey: key)
     }
 
+    /// Records completion only when `mode` says the guide was the first run.
+    /// This is the single gate between the guide and the persisted flag: the
+    /// revisit launched from Settings passes `.revisit` and nothing is written
+    /// (decisions §5).
+    static func recordCompletion(for mode: OnboardingMode, defaults: UserDefaults = .standard) {
+        guard mode.recordsCompletion else { return }
+        setComplete(defaults: defaults)
+    }
+
     static func reset(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: key)
     }

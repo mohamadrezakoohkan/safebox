@@ -16,6 +16,7 @@ struct PhotoPagerScreen: View {
     @State private var localPhotos: [Photo]
     @State private var resetToken = 0
     @State private var confirmDelete = false
+    @State private var infoMetadata: PhotoMetadata?
     @Environment(\.dismiss) private var dismiss
 
     init(photos: [Photo], startPhoto: Photo, fileStore: PhotoFileStore, otherAlbums: [Album],
@@ -37,7 +38,8 @@ struct PhotoPagerScreen: View {
     var body: some View {
         TabView(selection: $currentId) {
             ForEach(localPhotos) { photo in
-                PagerPageView(photo: photo, fileStore: fileStore, resetToken: resetToken)
+                PagerPageView(photo: photo, fileStore: fileStore, resetToken: resetToken,
+                              isCurrent: photo.id == currentId)
                     .tag(photo.id)
             }
         }
@@ -49,6 +51,15 @@ struct PhotoPagerScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    // Snapshot the current photo's stored values at tap time.
+                    if let photo = currentPhoto {
+                        infoMetadata = PhotoMetadata(photo: photo)
+                    }
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .accessibilityLabel(VaultCopy.photoInfoTitle)
                 if !otherAlbums.isEmpty {
                     Menu {
                         ForEach(otherAlbums) { album in
@@ -65,10 +76,17 @@ struct PhotoPagerScreen: View {
                 }
             }
         }
-        .confirmationDialog("Delete this photo? This cannot be undone.",
+        // Soft delete (P3): the grid owns the repository call and the undo
+        // toast via `onDelete`; this screen only drops the page locally.
+        .confirmationDialog(VaultCopy.confirmDeletePhoto,
                             isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { deleteCurrent() }
-            Button("Cancel", role: .cancel) {}
+            Button(VaultCopy.deleteAction, role: .destructive) { deleteCurrent() }
+            Button(VaultCopy.cancelAction, role: .cancel) {}
+        } message: {
+            Text(VaultCopy.confirmDeleteBodyTrash)
+        }
+        .sheet(item: $infoMetadata) { metadata in
+            PhotoInfoSheet(metadata: metadata)
         }
     }
 
@@ -99,10 +117,22 @@ private struct PagerPageView: View {
     let photo: Photo
     let fileStore: PhotoFileStore
     let resetToken: Int
+    /// Only the open page may hold a decoded video item (N3).
+    let isCurrent: Bool
 
     @State private var image: UIImage?
 
     var body: some View {
+        if photo.isVideo {
+            // AVPlayerViewController with PiP disabled — never SwiftUI's
+            // VideoPlayer, which cannot switch PiP off (decisions §9).
+            VaultVideoPage(url: fileStore.photoURL(fileName: photo.fileName), isCurrent: isCurrent)
+        } else {
+            stillPage
+        }
+    }
+
+    private var stillPage: some View {
         Group {
             if let image {
                 ZoomableImageView(image: image, resetToken: resetToken)

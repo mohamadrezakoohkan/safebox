@@ -1,11 +1,23 @@
 import SwiftUI
 
+/// Root of the Notes tab's stack. The `NavigationStack` lives in `MainTabView`
+/// (its path is owned by `VaultNavigator`, so global search can reset this tab
+/// to the list and push an editor); this screen declares the destinations.
 struct NotesListScreen: View {
     @State private var viewModel: NotesListViewModel
     let container: AppContainer
+    @Environment(UndoCenter.self) private var undoCenter: UndoCenter?
+    /// Optional so previews (and any host without `MainTabView` above) render.
+    @Environment(VaultNavigator.self) private var navigator: VaultNavigator?
 
-    @State private var noteToDelete: Note?
-    @State private var editingNote: Note?
+    /// What the single confirm dialog is about: one swiped note, or the whole
+    /// selection (P6). One dialog, one Delete, one toast either way.
+    private enum PendingDelete {
+        case single(Note)
+        case selection
+    }
+
+    @State private var pendingDelete: PendingDelete?
 
     init(viewModel: NotesListViewModel, container: AppContainer) {
         _viewModel = State(initialValue: viewModel)
@@ -13,63 +25,111 @@ struct NotesListScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.notes.isEmpty {
-                    ContentUnavailableView {
-                        Label("No notes yet", systemImage: "note.text")
-                    } actions: {
-                        Button("New note") { createNote() }
-                            .buttonStyle(.borderedProminent)
-                    }
-                } else if viewModel.visibleNotes.isEmpty {
-                    ContentUnavailableView.search
-                } else {
-                    notesList
+        Group {
+            if viewModel.visibleNotes.isEmpty {
+                // "No notes yet" with a New note action, or "No results"
+                // under a query / tag filter — the content decides whether
+                // the action button renders (decisions §2).
+                EmptyStateView(.forNotes(query: viewModel.searchText,
+                                         hasTagFilter: viewModel.filterTag != nil)) {
+                    createNote()
                 }
+            } else {
+                notesList
             }
-            .navigationTitle("Notes")
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if !viewModel.allTags.isEmpty {
-                        filterMenu
-                    }
-                    Button { createNote() } label: { Image(systemName: "square.and.pencil") }
+        }
+        .navigationTitle(viewModel.isSelecting
+                         ? VaultCopy.selectionCount(viewModel.selection.count)
+                         : VaultCopy.vaultTabNotes)
+        .navigationBarTitleDisplayMode(viewModel.isSelecting ? .inline : .automatic)
+        .toolbar { toolbarContent }
+        // Browsing only: selection mode keeps exactly the count title, Cancel
+        // and Delete (§6). The query survives the round trip.
+        .searchableWhileBrowsing(isSelecting: viewModel.isSelecting,
+                                 text: Bindable(viewModel).searchText)
+        // The Notes stack's destination. The route carries the id, so an
+        // editor opened from global search resolves the same way as a tap.
+        .navigationDestination(for: NotesRoute.self) { route in
+            destination(route)
+        }
+        .confirmationDialog(deleteDialogTitle,
+                            isPresented: Binding(
+                                get: { pendingDelete != nil },
+                                set: { if !$0 { pendingDelete = nil } }
+                            ), titleVisibility: .visible) {
+            Button(VaultCopy.deleteAction, role: .destructive) {
+                switch pendingDelete {
+                case .single(let note): deleteNote(note)
+                case .selection: deleteSelected()
+                case .none: break
                 }
+                pendingDelete = nil
             }
-            .searchable(text: Bindable(viewModel).searchText)
-            .navigationDestination(item: $editingNote) { note in
+            Button(VaultCopy.cancelAction, role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text(VaultCopy.confirmDeleteBodyTrash)
+        }
+        .onAppear { viewModel.reload() }
+    }
+
+    @ViewBuilder
+    private func destination(_ route: NotesRoute) -> some View {
+        switch route {
+        case .note(let noteId):
+            if let note = viewModel.repository.note(withId: noteId) {
                 NoteEditorScreen(viewModel: NoteEditorViewModel(note: note,
-                                                                repository: viewModel.repository))
+                                                                repository: viewModel.repository),
+                                 onDeleted: { deletedId in noteWasDeleted(ids: [deletedId]) })
                     .onDisappear { viewModel.reload() }
+            } else {
+                // The note was trashed or purged while its route was still on
+                // the stack: pop instead of pushing a screen with nothing in
+                // it. `onAppear` runs after the update, so the mutation is
+                // never made during a view evaluation.
+                Color.clear.onAppear { navigator?.dismiss(.notes(route)) }
             }
-            .confirmationDialog("Delete this note? This cannot be undone.",
-                                isPresented: Binding(
-                                    get: { noteToDelete != nil },
-                                    set: { if !$0 { noteToDelete = nil } }
-                                ), titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    if let note = noteToDelete { viewModel.delete(note) }
-                    noteToDelete = nil
-                }
-                Button("Cancel", role: .cancel) { noteToDelete = nil }
-            }
-            .onAppear { viewModel.reload() }
         }
     }
+
+    /// Pushes onto this tab's path. Rows are not `NavigationLink`s (P6: a link
+    /// navigates on any touch-up, which would fight the long-press entry into
+    /// selection mode), so navigation is explicit.
+    private func open(_ note: Note) {
+        navigator?.notesPath.append(.note(note.id))
+    }
+
+    // MARK: - List
 
     private var notesList: some View {
         List {
             ForEach(viewModel.visibleNotes) { note in
-                Button {
-                    editingNote = note
-                } label: {
+                let isSelected = viewModel.selection.contains(note.id)
+                HStack(spacing: 12) {
+                    if viewModel.isSelecting {
+                        SelectionIndicator(isSelected: isSelected)
+                    }
                     noteRow(note)
                 }
-                .buttonStyle(.plain)
+                .selectableListRow(isSelecting: viewModel.isSelecting, isSelected: isSelected,
+                                   onTap: {
+                                       // Rows never navigate while selecting.
+                                       if viewModel.isSelecting {
+                                           viewModel.toggleSelection(note)
+                                       } else {
+                                           open(note)
+                                       }
+                                   },
+                                   onLongPress: {
+                                       if !viewModel.isSelecting {
+                                           viewModel.enterSelectMode(selecting: note)
+                                       }
+                                   })
                 .swipeActions {
-                    // Confirmation, no undo (pinned parity decision).
-                    Button("Delete", role: .destructive) { noteToDelete = note }
+                    // Swipe-to-delete is unavailable while selecting (§6);
+                    // otherwise confirmation, then soft delete + undo toast.
+                    if !viewModel.isSelecting {
+                        Button(VaultCopy.deleteAction, role: .destructive) { pendingDelete = .single(note) }
+                    }
                 }
             }
         }
@@ -97,6 +157,46 @@ struct NotesListScreen: View {
             }
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Toolbar
+    //
+    // Two shapes, switched on `viewModel.isSelecting`:
+    //   selecting  → leading Cancel · trailing Delete (disabled at 0), title
+    //                "N selected" (inline)
+    //   browsing   → trailing group: search · sort · [tag filter] · compose
+    // Everything new goes in the BROWSING trailing group only; selection mode
+    // keeps exactly Cancel + Delete.
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if viewModel.isSelecting {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(VaultCopy.cancelAction) { viewModel.exitSelectMode() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    pendingDelete = .selection
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(viewModel.selection.isEmpty)
+                .accessibilityLabel(VaultCopy.deleteAction)
+            }
+        } else {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { navigator?.presentSearch() } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .accessibilityLabel(VaultCopy.searchTitle)
+                SortMenu(selection: viewModel.sort) { viewModel.setSort($0) }
+                if !viewModel.allTags.isEmpty {
+                    filterMenu
+                }
+                Button { createNote() } label: { Image(systemName: "square.and.pencil") }
+            }
+        }
     }
 
     private var filterMenu: some View {
@@ -129,6 +229,48 @@ struct NotesListScreen: View {
     }
 
     private func createNote() {
-        editingNote = viewModel.createNote()
+        if let note = viewModel.createNote() {
+            open(note)
+        }
+    }
+
+    // MARK: - Delete + undo
+
+    /// Title of the single confirm dialog: the swiped note, or the selection
+    /// with its count (singular copy when exactly one is selected).
+    private var deleteDialogTitle: String {
+        switch pendingDelete {
+        case .single, .none:
+            return VaultCopy.confirmDeleteNote
+        case .selection:
+            let count = viewModel.selection.count
+            return count == 1 ? VaultCopy.confirmDeleteNote : VaultCopy.confirmDeleteNotes(count)
+        }
+    }
+
+    /// Swipe path: the list performs the soft delete, then posts the toast.
+    private func deleteNote(_ note: Note) {
+        let id = note.id
+        viewModel.delete(note)
+        noteWasDeleted(ids: [id])
+    }
+
+    /// Bulk path (P6): one repository call for the whole selection, selection
+    /// mode ends, one toast whose Undo restores the whole batch.
+    private func deleteSelected() {
+        let ids = viewModel.deleteSelected()
+        guard !ids.isEmpty else { return }
+        noteWasDeleted(ids: ids)
+    }
+
+    /// Shared tail for every path (swipe, trash button in the editor, bulk):
+    /// reload and offer Undo, which restores through this view model.
+    private func noteWasDeleted(ids: [UUID]) {
+        let viewModel = viewModel
+        viewModel.reload()
+        let message = ids.count == 1 ? VaultCopy.deletedNote : VaultCopy.deletedNotes(ids.count)
+        undoCenter?.post(message: message) {
+            viewModel.restore(ids: ids)
+        }
     }
 }

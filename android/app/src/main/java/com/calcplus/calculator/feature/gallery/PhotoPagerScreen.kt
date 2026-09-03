@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -30,8 +31,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.calcplus.calculator.R
+import com.calcplus.calculator.app.LocalUndoController
+import com.calcplus.calculator.core.domain.repository.TrashItemKind
 import com.calcplus.calculator.core.ui.components.ZoomableImage
 import com.calcplus.calculator.di.AppContainer
 
@@ -46,12 +51,18 @@ fun PhotoPagerScreen(
     val viewModel: PhotoPagerViewModel = viewModel(key = "pager-$albumId") {
         PhotoPagerViewModel(albumId, container.photoRepository, container.albumRepository)
     }
-    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val pendingPhotos by viewModel.photos.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
+    val undo = LocalUndoController.current
 
     var confirmDelete by remember { mutableStateOf(false) }
     var showMoveMenu by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(false) }
     var initialised by remember { mutableStateOf(false) }
+
+    // `null` = the first Room emission is still pending; render nothing rather
+    // than mistaking it for an empty album and popping straight back out.
+    val photos = pendingPhotos ?: return
 
     if (photos.isEmpty()) {
         // All photos deleted/moved: nothing to page.
@@ -82,10 +93,19 @@ fun PhotoPagerScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back_action),
+                        )
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showInfo = true }) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = stringResource(R.string.photo_info_title),
+                        )
+                    }
                     Box {
                         IconButton(onClick = { showMoveMenu = true }) {
                             Icon(Icons.Filled.Folder, contentDescription = "Move to album")
@@ -106,7 +126,10 @@ fun PhotoPagerScreen(
                         }
                     }
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.delete_action),
+                        )
                     }
                 },
             )
@@ -121,28 +144,56 @@ fun PhotoPagerScreen(
                 .padding(padding),
         ) { page ->
             val photo = photos[page]
-            // key(photo.id, currentPage): zoom state resets on page change.
-            key(photo.id, pagerState.currentPage == page) {
-                ZoomableImage(
-                    model = container.photoFileStore.photoFile(photo.fileName),
-                )
+            val isCurrent = pagerState.currentPage == page
+            // key(photo.id, currentPage): zoom state resets on page change, and a
+            // video page that stops being current is disposed — which is what
+            // releases its player (PlaybackTeardownPolicy).
+            key(photo.id, isCurrent) {
+                if (photo.isVideo) {
+                    VaultVideoPage(
+                        file = container.photoFileStore.photoFile(photo.fileName),
+                        isCurrent = isCurrent,
+                    )
+                } else {
+                    ZoomableImage(
+                        model = container.photoFileStore.photoFile(photo.fileName),
+                    )
+                }
             }
+        }
+    }
+
+    // Details sheet reads the photo under the pager's current page — the same object the
+    // move/delete actions target — so every row is the real stored value.
+    if (showInfo) {
+        currentPhoto?.let { photo ->
+            PhotoInfoSheet(photo = photo, onDismiss = { showInfo = false })
         }
     }
 
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete photo") },
-            text = { Text("Delete this photo? This cannot be undone.") },
+            title = { Text(stringResource(R.string.confirm_delete_photo)) },
+            text = { Text(stringResource(R.string.confirm_delete_body_trash)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    currentPhoto?.let { viewModel.delete(it.id) }
-                }) { Text("Delete") }
+                    currentPhoto?.let { photo ->
+                        viewModel.delete(photo.id)
+                        // Deleting the last photo pops this screen; the snackbar
+                        // is hosted by VaultScaffold, so it still appears (and
+                        // still restores) on the grid underneath.
+                        undo?.post(TrashItemKind.PHOTO, 1) {
+                            container.photoRepository.restore(listOf(photo.id))
+                        }
+                    }
+                }) { Text(stringResource(R.string.delete_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
             },
         )
     }

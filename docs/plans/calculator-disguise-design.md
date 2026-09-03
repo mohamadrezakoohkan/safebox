@@ -1,11 +1,11 @@
 # SafeBox — Calculator Disguise Design Spec
 
 **Document:** `docs/plans/calculator-disguise-design.md`
-**Status:** Design authority for the iteration-1 calculator lock screen on both platforms. Behavior (engine semantics, key IDs, lock modes, banner state machines, verification) is pinned by `docs/plans/idea-plan.md` (§2, §6, §8) and the engine/recorder sections of `docs/plans/ios-plan.md` (§2.3, §2.4, §4.1) and `docs/plans/android-plan.md` (§2.3, §4.1) — those documents win on logic. This document owns everything visual and interactive: layout, tokens, type, motion, copy consolidation, accessibility, and believability. Where a platform plan sketched styling in passing (e.g. "dark background, orange operators" in ios-plan §4.1), this document refines that sketch into the binding spec.
+**Status:** Design authority for the calculator lock screen on both platforms, plus the one vault-side visual spec recorded in Appendix A. Behavior (engine semantics, key IDs, lock modes, banner state machines, verification) is pinned by `docs/plans/idea-plan.md` (§2, §6, §8) and the engine/recorder sections of `docs/plans/ios-plan.md` (§2.3, §2.4, §4.1) and `docs/plans/android-plan.md` (§2.3, §4.1) — those documents win on logic. This document owns everything visual and interactive: layout, tokens, type, motion, copy consolidation, accessibility, and believability. Where a platform plan sketched styling in passing (e.g. "dark background, orange operators" in ios-plan §4.1), this document refines that sketch into the binding spec.
 **Scope note (product-owner decision):** the pluggable disguise abstraction is design-only and lands in iteration 2. Iteration 1 builds the calculator hard-wired exactly as the committed plans describe; nothing in this document changes iteration-1 scope. The iteration-2 skeleton design will assess which parts of this spec are disguise-generic and which are calculator-bound; this document does not pre-certify itself against that abstraction.
 **Mockups:** visual mockups are produced separately (artboard list in §9). They are directional; where a mockup and this spec disagree, **this spec is authoritative**.
 **Reference-verification items:** several presentation facts in this spec are pinned provisionally against the reference model (iOS Calculator basic mode, per idea-plan §2.1) and must be verified on a physical reference device during the M8 hardening pass. They are marked **[R1]…[R5]** inline and collected in §8.4.
-**Last updated:** 2026-08
+**Last updated:** 2026-09
 
 ---
 
@@ -201,11 +201,17 @@ Principle: every animation on this screen must be something a calculator would d
 
 ### 5.4 Unlock transition
 
-- When async verification succeeds (idea-plan §2.2: off the UI path), the vault replaces the calculator with a **plain crossfade, 150ms, ease-in-out**. No zoom, no slide, no spring, no sound.
-- **Budget definition (measurement point pinned):** the idea-plan §6 "≤ 300 ms perceived" unlock budget is measured **from the `=` press to the FIRST crossfade frame** — "vault visible" = fade start. The 150ms fade tail is excluded from the budget.
-- **Honest arithmetic:** the KDF dominates the budget — PBKDF2 at 600k iterations is **~100–300 ms on a mid-range device** (ios-plan §3.4). First-frame latency = KDF (~100–300 ms) + scheduling the crossfade's first frame (≤ ~1 frame, ~17 ms at 60Hz). At the mid-range of the KDF estimate the budget is met with room; **at the KDF's upper bound the KDF alone consumes essentially the entire budget** and the first frame can land slightly past 300 ms. No compliance is claimed here that the numbers don't support: whether the budget is met is decided by the **measured** KDF on the DoD's mid-range reference device (idea-plan §8 criterion 4, measured to the first-frame definition above). If the measured KDF pushes the first frame past the budget on the reference device, that is a plan-level tension between idea-plan §6's budget and §2.2's pinned 600k iterations, to be resolved against the idea plan — not papered over by this document.
-- Until the fade's first frame, the display shows the arithmetic result of the committed expression, pixel-identical to a non-match (pinned requirement).
+- When async verification succeeds (idea-plan §2.2: off the UI path), the vault replaces the calculator with a **zoom-in reveal**: the vault fades in (opacity 0 → 1) while scaling **0.92 → 1.0**, and the calculator fades out **in place** (opacity 1 → 0, **no scale**). The two run concurrently over **260 ms** on the emphasized-decelerate curve **cubic-bezier(0.05, 0.7, 0.1, 1.0)**. No slide, no spring, no sound.
+- **Why this, and not the plain crossfade this section used to specify.** A crossfade reads as a flicker rather than a reveal — it is what the vault appearing *shouldn't* look like. A fade-through inserts a gap in which neither surface is visible, which pushes the first vault frame later (see the budget definition below) and shows a momentary bare background that reads as a glitch. A circular reveal from the `=` key needs the key's runtime geometry, an animated clip mask and per-platform tuning to look identical, and it makes `=` visibly special — expensive, and a tell in the one place we can least afford one. The zoom-in reveal is concurrent (the first transition frame already shows the vault, so the budget's measurement point is unchanged), it reads as depth — *something was behind the calculator* — and it is a one-line transition on both platforms.
+- **Direction rule: only the transition INTO the unlocked state animates**, from `Locked` and from first-run setup alike. First-run confirmation deliberately uses the **same** reveal: it is the first time the user sees the vault, and there is no reason for it to feel different from every later unlock.
+- **Every other direction is an instant cut**, without exception: `Unlocked → Locked` (manual lock, background lock, any lock at all), setup ↔ locked, the post-erase return to setup, and **every calculator-epoch bump** — the calculator being recreated must never read as a transition, because a bystander who sees the calculator "animate" for no arithmetic reason has seen something a calculator does not do.
+- **Reduced motion:** the fallback is an **opacity-only crossfade at the same 260 ms and the same curve** — the scale is dropped, the timing is not, so the reveal still reads as one deliberate event rather than a jump. iOS reads `accessibilityReduceMotion`. Android has no reduce-motion flag; its only signal is `ANIMATOR_DURATION_SCALE == 0` ("Remove animations"), which means *no animation at all*, so Android snaps in that case.
+- **The one-time no-recovery notice (§5.7) must not pop over the reveal.** It is presented only after the reveal completes, and never over a locked calculator.
+- **Budget definition (measurement point unchanged):** the idea-plan §6 "≤ 300 ms perceived" unlock budget is measured **from the `=` press to the FIRST reveal frame** — "vault visible" = the reveal's first frame. The 260 ms tail is excluded from the budget.
+- **Honest arithmetic:** the KDF dominates the budget — PBKDF2 at 600k iterations is **~100–300 ms on a mid-range device** (ios-plan §3.4). First-frame latency = KDF (~100–300 ms) + scheduling the reveal's first frame (≤ ~1 frame, ~17 ms at 60Hz). At the mid-range of the KDF estimate the budget is met with room; **at the KDF's upper bound the KDF alone consumes essentially the entire budget** and the first frame can land slightly past 300 ms. No compliance is claimed here that the numbers don't support: whether the budget is met is decided by the **measured** KDF on the DoD's mid-range reference device (idea-plan §8 criterion 4, measured to the first-frame definition above). If the measured KDF pushes the first frame past the budget on the reference device, that is a plan-level tension between idea-plan §6's budget and §2.2's pinned 600k iterations, to be resolved against the idea plan — not papered over by this document.
+- Until the reveal's first frame, the display shows the arithmetic result of the committed expression, pixel-identical to a non-match (pinned requirement).
 - The reverse transition (lock) is **instant** — a cut, not a fade: locking is fail-closed and must never show vault pixels a frame longer than necessary (and on iOS the snapshot cover per ios-plan §2.3 is already in place before any transition would render).
+- **No haptic, no sound, and no accessibility announcement on unlock** (§5.2, §7.1): the vault appearing is the only feedback. A success buzz is a tell in pocket-adjacent situations, and a spoken announcement would hand the secret to anyone with a screen reader running.
 
 ### 5.5 Setup banner (caption strip)
 
@@ -225,7 +231,7 @@ Per idea-plan §2.7, wrong-current-code feedback is *visible* here — silence i
 
 ### 5.7 One-time no-recovery notice
 
-- Shown once, immediately after a successful first-run confirm, **as a platform-native modal alert over the just-revealed vault** (idea-plan §2.3: store passcode → UNLOCKED → notice). Native alert styling (SwiftUI `alert` / Material 3 `AlertDialog`) — deliberately not a custom-designed sheet: a system dialog reads as serious and final, which is the point.
+- Shown once after a successful first-run confirm, **as a platform-native modal alert over the just-revealed vault** (idea-plan §2.3: store passcode → UNLOCKED → notice) — and only **after the §5.4 reveal has completed**, never popping over it, and never left standing over a locked calculator if the app locks before the user acknowledges it. Native alert styling (SwiftUI `alert` / Material 3 `AlertDialog`) — deliberately not a custom-designed sheet: a system dialog reads as serious and final, which is the point.
 - Title, body, and single confirming button per the copy table (§6). Modal and blocking; no "don't show again" checkbox (it already shows only once); dismissal requires the explicit button tap.
 - The same body text is restated in Settings → About (idea-plan §2.6) — About screen design is out of this document's scope (it lives inside the vault).
 
@@ -317,7 +323,7 @@ Run on physical devices, both platforms, dark and light themes, before any itera
 8. Thousands separators appear at 4+ integer digits; 9-significant-digit rounding; scientific format per §4.6 — `999999999 × 9 =` renders `8.99999999e9` (never `9e9`).
 9. **Entry cap (§4.2):** the 10th digit of an operand produces the identical press visual and haptic with no display change; typing a 32-key digits-only passcode feels completely normal while the display sits at its cap, and the code still unlocks (the recorder captured every key).
 10. Key response feels instant (≤50ms budget); no key ever repeats on hold; rapid two-thumb typing drops no presses.
-11. Committing any wrong/short/overflowed sequence with `=` produces the arithmetic result with **zero** observable difference — timed side-by-side against a correct-code commit on a second device if available (display path must be indistinguishable until the crossfade).
+11. Committing any wrong/short/overflowed sequence with `=` produces the arithmetic result with **zero** observable difference — timed side-by-side against a correct-code commit on a second device if available (display path must be indistinguishable until the reveal's first frame, §5.4).
 
 ### 8.2 Visual gauntlet
 
@@ -395,3 +401,39 @@ Short mapping only — engine, recorder, verification, lock coordination, and mo
 - All strings from §6 land under the shared string IDs; the copy table is the single source — platform paraphrases in earlier plan sketches are superseded (§6 preamble).
 - The §4 display-formatting rules (entry cap, separators, scientific format) land via the **coordinated amendment** (§4 preamble): the platform plans' engine/formatting sections and their test tables adopt them at implementation time, together with the §8.4 reference-verification outcomes.
 - The believability checklist (§8) — including the §8.4 reference-verification items — is executed as part of each platform's M8 hardening pass (ios-plan §6 M8, android-plan §6 M8) alongside the existing DoD items; it adds design acceptance to, and never replaces, idea-plan §8.
+
+---
+
+## Appendix A — Vault empty states
+
+**Scope note, stated up front:** this is the first section of this document that specifies a **vault** surface rather than the calculator lock screen. It lives here anyway because it is the one cross-platform *visual* spec iteration 2 pinned, and cross-platform visual specs are what this document is for — the alternative was a spacing table stranded in a decisions log nobody opens while building a screen. Everything else here remains lock-screen authority, and nothing in this appendix is disguise-relevant: an empty state is only ever reachable after unlock.
+
+The spec exists because the two platforms had drifted. Android's shared component already carried a considered rhythm; iOS was using the system's stock unavailable-content view, which passed no description at all and read visibly thinner on the same content. One rhythm, one structure, both platforms.
+
+### A.1 The rhythm (platform-neutral; pt on iOS ≡ dp on Android)
+
+| Element | Spec |
+|---|---|
+| Icon circle | **88** diameter, filled `surfaceContainerHigh` (Android) / `secondarySystemFill` (iOS) |
+| Glyph | **40**, tinted `onSurfaceVariant` (Android) / secondary (iOS) |
+| circle → title | **20** |
+| Title | `titleLarge` / `.title2`, **default weight** (Material's `titleLarge` is weight 400 — do not bold one platform), centered |
+| title → description | **8** |
+| Description | `bodyMedium` / `.subheadline`, secondary color, centered |
+| description → action | **24** |
+| Action | filled button; present only where the state has an action |
+| Horizontal padding | **32** |
+
+The circle and glyph are **fixed** sizes, not text-scaled, so the two platforms' dp and pt stay equal; the type scales normally.
+
+### A.2 Optical centering
+
+The block is centered horizontally, and the free vertical space is split **1.0 above : 1.35 below** — deliberately not evenly. A true-centered block reads as sitting *low* once a top bar sits above it and a floating action button below it; lifting it by that ratio is what makes it look centered. If the block is taller than the visible area — a large text size, or a keyboard raised behind a search field — the area **scrolls** rather than clipping the action button off the bottom.
+
+### A.3 Structure is invariant
+
+Every vault empty state is **icon + title + one-line description**, and the description is not optional. That includes the filtered **"No results"** states, which were the ones previously left title-only and which read unfinished without a line telling the user what to try next.
+
+Only the four "nothing here yet" states — no albums, empty album, no notes, no contacts — carry an **action button**. A "No results" state has nothing useful to offer (the content exists or it doesn't), and a button there is a dead end. The same rule covers the rest of the vault's states: the global-search empty-query and no-results states and the Recently-deleted empty state all carry a description and no action.
+
+Two placement rules that are part of the spec, not per-screen taste: a state's **glyph belongs to the state**, not to the call site — the two "no results" states use the search glyph on both platforms, not their tab's glyph — and the photo grid **suppresses its empty state while an import is running**, showing the import progress pill centered in the empty grid area instead, because "No photos yet" under an active import is a lie.

@@ -4,23 +4,41 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.calcplus.calculator.core.domain.model.Album
+import com.calcplus.calculator.core.domain.model.AlbumSort
 import com.calcplus.calculator.core.domain.model.Photo
 import com.calcplus.calculator.core.domain.repository.AlbumRepository
 import com.calcplus.calculator.core.domain.repository.ImportProgress
 import com.calcplus.calculator.core.domain.repository.PhotoRepository
+import com.calcplus.calculator.core.domain.repository.SortPreferences
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AlbumListViewModel(
     private val albumRepository: AlbumRepository,
+    private val sortPreferences: SortPreferences,
 ) : ViewModel() {
-    /** null = first Room emission pending — render nothing, never a false empty state. */
-    val albums: StateFlow<List<Album>?> = albumRepository.observeAlbums()
+    /** The active sort mode (decisions §4); DEFAULT until the store's first emission. */
+    val sort: StateFlow<AlbumSort> = sortPreferences.albumSort
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AlbumSort.DEFAULT)
+
+    /**
+     * null = first Room emission pending — render nothing, never a false empty
+     * state. Ordering happens in the repository, never in a composable body.
+     */
+    val albums: StateFlow<List<Album>?> = sortPreferences.albumSort
+        .flatMapLatest { albumRepository.observeAlbums(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setSort(mode: AlbumSort) {
+        viewModelScope.launch { sortPreferences.setAlbumSort(mode) }
+    }
 
     fun createAlbum(name: String) {
         val trimmed = name.trim()
@@ -79,10 +97,16 @@ class PhotoGridViewModel(
         photoRepository.import(albumId, uris)
     }
 
-    fun deleteSelected() {
+    /**
+     * Soft-deletes the selection in ONE repository call (one shared stamp) and
+     * returns the ids it deleted, so the caller can offer Undo for exactly
+     * those photos.
+     */
+    fun deleteSelected(): List<String> {
         val ids = _selection.value.toList()
         exitSelecting()
         viewModelScope.launch { photoRepository.deletePhotos(ids) }
+        return ids
     }
 
     fun moveSelected(toAlbumId: String) {
@@ -97,8 +121,15 @@ class PhotoPagerViewModel(
     private val photoRepository: PhotoRepository,
     private val albumRepository: AlbumRepository,
 ) : ViewModel() {
-    val photos: StateFlow<List<Photo>> = photoRepository.observePhotos(albumId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /**
+     * `null` means "the first Room emission has not arrived yet" — the same
+     * convention every other list in the vault uses. It must NOT be
+     * `emptyList()`: the pager treats an empty album as "nothing to page" and
+     * pops itself, so a pending-but-empty initial value closed the pager the
+     * instant it opened (no photo or video could be viewed at all).
+     */
+    val photos: StateFlow<List<Photo>?> = photoRepository.observePhotos(albumId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val albums: StateFlow<List<Album>> = albumRepository.observeAlbums()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

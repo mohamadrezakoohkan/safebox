@@ -80,17 +80,25 @@ private const val PAGE_COUNT = 4
 private val SuccessGreen = Color(0xFF4ADE80)
 
 /**
- * First-run guide: what the app really is and how the key-sequence passcode
- * works. Shown only while no passcode exists (fresh install / post-erase) —
- * once a vault is set up the disguise is never preceded by an explainer.
+ * The guide: what the app really is and how the key-sequence passcode works.
+ * [OnboardingMode.FIRST_RUN] shows it while no passcode exists (fresh install /
+ * post-erase), before the calculator ever appears — once a vault is set up the
+ * disguise is never preceded by an explainer. [OnboardingMode.REVISIT] re-opens
+ * the same pages from Settings inside the unlocked vault; there every finish
+ * path is a plain dismissal (decisions §5). This composable never touches
+ * first-run state itself: [onFinish] is the caller's, and persisting completion
+ * goes through [recordOnboardingCompletion], which the mode gates.
  * Styled with the disguise palette so it flows straight into the calculator.
  */
 @Composable
-fun OnboardingScreen(onFinish: () -> Unit) {
+fun OnboardingScreen(mode: OnboardingMode, onFinish: () -> Unit) {
     val theme = if (isSystemInDarkTheme()) DisguiseTheme.Dark else DisguiseTheme.Light
     val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
     val scope = rememberCoroutineScope()
     val isLast = pagerState.currentPage == PAGE_COUNT - 1
+    // Top-right: Skip on the first run (hidden on the last page so the CTA is
+    // the only way forward), Done on every page of a revisit.
+    val showsTrailingButton = !isLast || mode.showsTrailingButtonOnLastPage
 
     Box(
         modifier = Modifier
@@ -110,9 +118,9 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AnimatedVisibility(visible = !isLast, enter = fadeIn(), exit = fadeOut()) {
+                AnimatedVisibility(visible = showsTrailingButton, enter = fadeIn(), exit = fadeOut()) {
                     TextButton(onClick = onFinish) {
-                        Text(stringResource(R.string.onboarding_skip), color = theme.caption, fontSize = 15.sp)
+                        Text(stringResource(mode.trailingButtonLabel), color = theme.caption, fontSize = 15.sp)
                     }
                 }
             }
@@ -151,7 +159,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             ) {
                 AnimatedContent(targetState = isLast, label = "ctaLabel") { last ->
                     Text(
-                        stringResource(if (last) R.string.onboarding_start else R.string.onboarding_next),
+                        stringResource(if (last) mode.finalCtaLabel else R.string.onboarding_next),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                     )

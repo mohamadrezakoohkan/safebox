@@ -2,12 +2,16 @@ import SwiftUI
 
 struct NoteEditorScreen: View {
     @State private var viewModel: NoteEditorViewModel
+    /// Called with the note's id after the trash button soft-deletes it; the
+    /// list screen posts the undo toast from here.
+    let onDeleted: (UUID) -> Void
     @State private var confirmDelete = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    init(viewModel: NoteEditorViewModel) {
+    init(viewModel: NoteEditorViewModel, onDeleted: @escaping (UUID) -> Void) {
         _viewModel = State(initialValue: viewModel)
+        self.onDeleted = onDeleted
     }
 
     var body: some View {
@@ -49,15 +53,20 @@ struct NoteEditorScreen: View {
             if phase != .active { viewModel.flush() }
         }
         .onDisappear {
+            // No-op after delete: the view model refuses to flush a trashed note.
             viewModel.flush()
         }
-        .confirmationDialog("Delete this note? This cannot be undone.",
+        .confirmationDialog(VaultCopy.confirmDeleteNote,
                             isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
+            Button(VaultCopy.deleteAction, role: .destructive) {
+                let id = viewModel.note.id
                 viewModel.delete()
+                onDeleted(id)
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(VaultCopy.cancelAction, role: .cancel) {}
+        } message: {
+            Text(VaultCopy.confirmDeleteBodyTrash)
         }
     }
 }

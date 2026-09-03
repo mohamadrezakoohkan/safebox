@@ -4,6 +4,7 @@ import PhotosUI
 struct AlbumGridScreen: View {
     @State private var viewModel: AlbumGridViewModel
     let container: AppContainer
+    @Environment(UndoCenter.self) private var undoCenter: UndoCenter?
 
     @State private var showPicker = false
     @State private var pickedItems: [PhotosPickerItem] = []
@@ -24,14 +25,7 @@ struct AlbumGridScreen: View {
     var body: some View {
         Group {
             if viewModel.photos.isEmpty && !viewModel.importer.isImporting {
-                ContentUnavailableView {
-                    Label("No photos yet", systemImage: "photo")
-                } description: {
-                    Text("Copied into SafeBox — you can remove the originals in Photos.")
-                } actions: {
-                    Button("Import photos") { presentPicker() }
-                        .buttonStyle(.borderedProminent)
-                }
+                EmptyStateView(.noPhotos) { presentPicker() }
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 2) {
@@ -45,30 +39,40 @@ struct AlbumGridScreen: View {
         .navigationTitle(viewModel.album.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
-        .overlay(alignment: .bottom) {
+        // While the album is still empty the pill sits centered in the empty
+        // grid area (decisions §2); once photos land it drops to the bottom.
+        .overlay(alignment: viewModel.photos.isEmpty ? .center : .bottom) {
             if viewModel.importer.isImporting {
                 importProgress
             }
         }
+        .animation(.default, value: viewModel.photos.isEmpty)
+        // Mixed media (N3): videos arrive as files, never as Data.
         .photosPicker(isPresented: $showPicker, selection: $pickedItems,
-                      matching: .images, photoLibrary: .shared())
+                      matching: .any(of: [.images, .videos]), photoLibrary: .shared())
         .onChange(of: showPicker) { _, presented in
             if !presented {
                 let items = pickedItems
                 pickedItems = []
                 Task {
-                    await viewModel.importPicked(items)
+                    let failedVideos = await viewModel.importPicked(items)
+                    // Progress stays item-count based (decisions §9); a video
+                    // that could not be imported gets its own visible notice.
+                    if failedVideos > 0 {
+                        undoCenter?.postNotice(message: VaultCopy.videoImportFailed)
+                    }
                     // Clear suppression after the round-trip fully completes.
                     container.lockCoordinator.systemUIDidDismiss()
                 }
             }
         }
-        .confirmationDialog("Delete \(viewModel.selection.count) photos? This cannot be undone.",
-                            isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                Task { await viewModel.deleteSelected() }
+        .confirmationDialog(deleteSelectionTitle, isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button(VaultCopy.deleteAction, role: .destructive) {
+                deletePhotos(viewModel.selectedPhotos)
             }
-            Button("Cancel", role: .cancel) {}
+            Button(VaultCopy.cancelAction, role: .cancel) {}
+        } message: {
+            Text(VaultCopy.confirmDeleteBodyTrash)
         }
         .navigationDestination(item: $pagerStart) { photo in
             PhotoPagerScreen(
@@ -76,11 +80,30 @@ struct AlbumGridScreen: View {
                 startPhoto: photo,
                 fileStore: container.photoFileStore,
                 otherAlbums: viewModel.otherAlbums,
-                onDelete: { p in Task { await viewModel.delete(p) } },
+                onDelete: { p in deletePhotos([p]) },
                 onMove: { p, album in viewModel.move(p, to: album) }
             )
         }
         .onAppear { viewModel.reload() }
+    }
+
+    private var deleteSelectionTitle: String {
+        let count = viewModel.selection.count
+        return count == 1 ? VaultCopy.confirmDeletePhoto : VaultCopy.confirmDeletePhotos(count)
+    }
+
+    /// Soft delete + undo toast, shared by the grid selection and the pager.
+    /// The closure carries ids only and restores through the view model so the
+    /// grid reloads (the pager mirrors its own list and does not re-insert).
+    private func deletePhotos(_ photos: [Photo]) {
+        let viewModel = viewModel
+        let ids = viewModel.delete(photos)
+        if viewModel.isSelecting { viewModel.exitSelectMode() }
+        guard !ids.isEmpty else { return }
+        let message = ids.count == 1 ? VaultCopy.deletedPhoto : VaultCopy.deletedPhotos(ids.count)
+        undoCenter?.post(message: message) {
+            viewModel.restorePhotos(ids: ids)
+        }
     }
 
     private func presentPicker() {
@@ -99,6 +122,13 @@ struct AlbumGridScreen: View {
         } label: {
             PhotoThumbnailView(photo: photo, fileStore: container.photoFileStore)
                 .aspectRatio(1, contentMode: .fill)
+                // Play glyph (centered) + duration pill (bottom-leading); the
+                // selection indicator below stays bottom-trailing.
+                .overlay {
+                    if photo.isVideo {
+                        VideoCellOverlay(durationMs: photo.durationMs)
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if viewModel.isSelecting {
                         Image(systemName: viewModel.selection.contains(photo.id)
@@ -131,10 +161,10 @@ struct AlbumGridScreen: View {
                         Image(systemName: "trash")
                     }
                 }
-                Button("Cancel") { viewModel.exitSelectMode() }
+                Button(VaultCopy.cancelAction) { viewModel.exitSelectMode() }
             } else {
                 if !viewModel.photos.isEmpty {
-                    Button("Select") { viewModel.isSelecting = true }
+                    Button(VaultCopy.selectAction) { viewModel.isSelecting = true }
                 }
                 Button { presentPicker() } label: { Image(systemName: "plus") }
             }
@@ -144,12 +174,13 @@ struct AlbumGridScreen: View {
     private var importProgress: some View {
         HStack(spacing: 10) {
             ProgressView()
-            Text("Importing \(viewModel.importer.completedCount)/\(viewModel.importer.totalCount)…")
+            Text(VaultCopy.importProgress(done: viewModel.importer.completedCount,
+                                          total: viewModel.importer.totalCount))
                 .font(.callout)
         }
         .padding(12)
         .background(.regularMaterial, in: Capsule())
-        .padding(.bottom, 24)
+        .padding(.bottom, viewModel.photos.isEmpty ? 0 : 24)
         .task(id: viewModel.importer.completedCount) {
             viewModel.reload()
         }

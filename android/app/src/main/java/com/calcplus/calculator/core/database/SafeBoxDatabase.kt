@@ -17,6 +17,12 @@ import com.calcplus.calculator.core.database.entity.NoteTagCrossRef
 import com.calcplus.calculator.core.database.entity.PhotoEntity
 import com.calcplus.calculator.core.database.entity.TagEntity
 
+/**
+ * Version history (exported under `app/schemas/…/SafeBoxDatabase/`):
+ *  - 1: iteration 1.
+ *  - 2: iteration 2 — `deletedAt` on albums/photos/notes/contacts, and
+ *    `mediaType` / `durationMs` on photos ([MIGRATION_1_2]).
+ */
 @Database(
     entities = [
         AlbumEntity::class,
@@ -26,7 +32,7 @@ import com.calcplus.calculator.core.database.entity.TagEntity
         NoteTagCrossRef::class,
         ContactEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -40,6 +46,7 @@ abstract class SafeBoxDatabase : RoomDatabase() {
     companion object {
         fun build(context: Context): SafeBoxDatabase =
             Room.databaseBuilder(context, SafeBoxDatabase::class.java, "safebox.db")
+                .addMigrations(MIGRATION_1_2)
                 // Never fallbackToDestructiveMigration: it silently deletes the vault.
                 .build()
     }

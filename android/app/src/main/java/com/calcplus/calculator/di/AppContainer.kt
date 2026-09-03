@@ -14,12 +14,16 @@ import com.calcplus.calculator.core.data.PasscodeStore
 import com.calcplus.calculator.core.data.VaultNuker
 import com.calcplus.calculator.core.data.PhotoFileStore
 import com.calcplus.calculator.core.data.PhotoRepositoryImpl
+import com.calcplus.calculator.core.data.SortPrefsStore
+import com.calcplus.calculator.core.data.TrashRepositoryImpl
 import com.calcplus.calculator.core.database.SafeBoxDatabase
 import com.calcplus.calculator.core.domain.repository.AlbumRepository
 import com.calcplus.calculator.core.domain.repository.ContactRepository
 import com.calcplus.calculator.core.domain.repository.NoteRepository
 import com.calcplus.calculator.core.domain.repository.PasscodeRepository
 import com.calcplus.calculator.core.domain.repository.PhotoRepository
+import com.calcplus.calculator.core.domain.repository.SortPreferences
+import com.calcplus.calculator.core.domain.repository.TrashRepository
 import com.calcplus.calculator.core.lock.AppLockManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
@@ -44,6 +48,12 @@ class AppContainer(context: Context, val applicationScope: CoroutineScope) {
     val passcodeRepository: PasscodeRepository = PasscodeRepositoryImpl(passcodeStore)
 
     val onboardingStore = OnboardingStore(prefsDataStore)
+
+    /**
+     * Album/note sort choices (decisions §4) — Flow-only, so it adds no second
+     * blocking read to process start.
+     */
+    val sortPreferences: SortPreferences = SortPrefsStore(prefsDataStore)
 
     // ONE synchronous read at process start serves both flags (android-plan
     // §2.3) — not one runBlocking per store.
@@ -70,7 +80,25 @@ class AppContainer(context: Context, val applicationScope: CoroutineScope) {
 
     val contactRepository: ContactRepository by lazy { ContactRepositoryImpl(database) }
 
+    /** "Recently deleted" (decisions §3): reads trash, restores and purges. */
+    val trashRepository: TrashRepository by lazy {
+        TrashRepositoryImpl(
+            database = database,
+            albumRepository = albumRepository,
+            photoRepository = photoRepository,
+            noteRepository = noteRepository,
+            contactRepository = contactRepository,
+        )
+    }
+
     val vaultNuker: VaultNuker by lazy {
-        VaultNuker(database, photoFileStore, passcodeStore, onboardingStore, lockManager)
+        VaultNuker(
+            database,
+            photoFileStore,
+            passcodeStore,
+            onboardingStore,
+            sortPreferences,
+            lockManager,
+        )
     }
 }

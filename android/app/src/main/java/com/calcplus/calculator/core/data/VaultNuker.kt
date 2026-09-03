@@ -1,13 +1,15 @@
 package com.calcplus.calculator.core.data
 
 import com.calcplus.calculator.core.database.SafeBoxDatabase
+import com.calcplus.calculator.core.domain.repository.SortPreferences
 import com.calcplus.calculator.core.lock.AppLockManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * Erase everything: all vault rows and bytes, then the passcode, then the
- * onboarding flag, then the lock state machine back to first-run.
+ * onboarding flag and the sort preferences, then the lock state machine back
+ * to first-run — the app as it was on the day it was installed.
  *
  * Ordering is deliberate. Content goes first and the passcode last, so a
  * process death mid-nuke reopens the app locked over an already-empty vault —
@@ -20,6 +22,7 @@ class VaultNuker(
     private val fileStore: PhotoFileStore,
     private val passcodeStore: PasscodeStore,
     private val onboardingStore: OnboardingStore,
+    private val sortPreferences: SortPreferences,
     private val lockManager: AppLockManager,
 ) {
     suspend fun nuke() = withContext(Dispatchers.IO) {
@@ -27,6 +30,9 @@ class VaultNuker(
         fileStore.deleteAll()
         passcodeStore.clear()
         onboardingStore.reset()
+        // Decisions §4: erase returns the app to its just-installed state, so
+        // the album and note sort choices go too.
+        sortPreferences.reset()
         lockManager.reset()
     }
 }

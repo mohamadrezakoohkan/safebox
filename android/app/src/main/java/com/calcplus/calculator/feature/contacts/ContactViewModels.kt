@@ -47,6 +47,50 @@ class ContactListViewModel(
     fun delete(id: String) {
         viewModelScope.launch { repository.delete(id) }
     }
+
+    // ---- Multi-select (decisions §6) --------------------------------------
+    // Same shape as PhotoGridViewModel / NoteListViewModel: the state lives
+    // here, so it is torn down with the vault on lock (VaultScaffold is only
+    // composed while Unlocked) and there is no lock hook to write. Sticky
+    // section headers are not rows, so they are unselectable by construction.
+
+    private val _selection = MutableStateFlow<Set<String>>(emptySet())
+    val selection: StateFlow<Set<String>> = _selection.asStateFlow()
+
+    private val _isSelecting = MutableStateFlow(false)
+    val isSelecting: StateFlow<Boolean> = _isSelecting.asStateFlow()
+
+    /** Long-press entry: the pressed row is selected straight away. */
+    fun startSelecting(contactId: String? = null) {
+        _isSelecting.value = true
+        if (contactId != null) _selection.value = _selection.value + contactId
+    }
+
+    fun exitSelecting() {
+        _isSelecting.value = false
+        _selection.value = emptySet()
+    }
+
+    /** No-op while browsing: a plain tap there opens the contact. */
+    fun toggleSelection(contactId: String) {
+        if (!_isSelecting.value) return
+        _selection.value = _selection.value.let {
+            if (contactId in it) it - contactId else it + contactId
+        }
+    }
+
+    /**
+     * Soft-deletes the whole selection in ONE repository call (one shared
+     * `deletedAt` stamp) and returns the ids, so the caller can offer Undo for
+     * exactly that batch. Selection mode always exits, even at zero.
+     */
+    fun deleteSelected(): List<String> {
+        val ids = _selection.value.toList()
+        exitSelecting()
+        if (ids.isEmpty()) return emptyList()
+        viewModelScope.launch { repository.delete(ids) }
+        return ids
+    }
 }
 
 class ContactDetailViewModel(

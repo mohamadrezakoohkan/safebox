@@ -17,12 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,12 +40,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.calcplus.calculator.R
+import com.calcplus.calculator.app.LocalUndoController
 import com.calcplus.calculator.core.domain.model.Album
+import com.calcplus.calculator.core.domain.model.AlbumSort
+import com.calcplus.calculator.core.domain.repository.TrashItemKind
 import com.calcplus.calculator.core.ui.components.EmptyState
+import com.calcplus.calculator.core.ui.components.SortMenu
+import com.calcplus.calculator.core.ui.components.VaultEmptyStates
+import com.calcplus.calculator.core.ui.components.labelRes
 import com.calcplus.calculator.di.AppContainer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -51,11 +61,14 @@ import com.calcplus.calculator.di.AppContainer
 fun AlbumListScreen(
     container: AppContainer,
     onOpenAlbum: (albumId: String, albumName: String) -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val viewModel: AlbumListViewModel = viewModel {
-        AlbumListViewModel(container.albumRepository)
+        AlbumListViewModel(container.albumRepository, container.sortPreferences)
     }
     val albums by viewModel.albums.collectAsStateWithLifecycle()
+    val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val undo = LocalUndoController.current
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var albumToRename by remember { mutableStateOf<Album?>(null) }
@@ -63,7 +76,26 @@ fun AlbumListScreen(
     var menuAlbumId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Gallery") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.vault_tab_gallery)) },
+                // Order is search · sort (decisions §7 / §4).
+                actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.search_title),
+                        )
+                    }
+                    SortMenu(
+                        options = AlbumSort.entries,
+                        selected = sort,
+                        label = { stringResource(it.labelRes) },
+                        onSelect = viewModel::setSort,
+                    )
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "New album")
@@ -75,10 +107,7 @@ fun AlbumListScreen(
         if (albumList.isEmpty()) {
             EmptyState(
                 modifier = Modifier.padding(padding),
-                icon = Icons.Filled.Photo,
-                title = "No albums yet",
-                description = "Albums keep your imported photos organized.",
-                actionLabel = "Create album",
+                content = VaultEmptyStates.albums,
                 onAction = { showCreateDialog = true },
             )
         } else {
@@ -149,18 +178,27 @@ fun AlbumListScreen(
         )
     }
     albumToDelete?.let { album ->
+        // `photoCount` is the LIVE count (trashed photos are excluded by the
+        // DAO), which is exactly what the album delete is about to stamp.
         AlertDialog(
             onDismissRequest = { albumToDelete = null },
-            title = { Text("Delete album") },
-            text = { Text("Delete album and its ${album.photoCount} photos? This cannot be undone.") },
+            title = { Text(stringResource(R.string.confirm_delete_album, album.photoCount)) },
+            text = { Text(stringResource(R.string.confirm_delete_body_trash)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteAlbum(album.id)
                     albumToDelete = null
-                }) { Text("Delete") }
+                    // Undo goes straight to the repository, not the view model:
+                    // it must still work if this screen is gone by then.
+                    undo?.post(TrashItemKind.ALBUM, 1) {
+                        container.albumRepository.restore(listOf(album.id))
+                    }
+                }) { Text(stringResource(R.string.delete_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { albumToDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { albumToDelete = null }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
             },
         )
     }

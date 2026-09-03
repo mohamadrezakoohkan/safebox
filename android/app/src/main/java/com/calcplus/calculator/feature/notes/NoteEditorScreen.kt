@@ -35,11 +35,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.calcplus.calculator.R
+import com.calcplus.calculator.app.LocalUndoController
+import com.calcplus.calculator.core.domain.repository.TrashItemKind
 import com.calcplus.calculator.core.markdown.NoteDerivation
 import com.calcplus.calculator.di.AppContainer
 
@@ -56,6 +60,7 @@ fun NoteEditorScreen(
     val note by viewModel.note.collectAsStateWithLifecycle()
     val allTags by viewModel.allTags.collectAsStateWithLifecycle()
     val draft by viewModel.draftBody.collectAsStateWithLifecycle()
+    val undo = LocalUndoController.current
 
     var showPreview by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -86,7 +91,10 @@ fun NoteEditorScreen(
                         viewModel.flush()
                         onBack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back_action),
+                        )
                     }
                 },
                 actions = {
@@ -100,7 +108,10 @@ fun NoteEditorScreen(
                         )
                     }
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = stringResource(R.string.delete_action),
+                        )
                     }
                 },
             )
@@ -187,16 +198,23 @@ fun NoteEditorScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete note") },
-            text = { Text("Delete this note? This cannot be undone.") },
+            title = { Text(stringResource(R.string.confirm_delete_note)) },
+            text = { Text(stringResource(R.string.confirm_delete_body_trash)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     viewModel.delete { onBack() }
-                }) { Text("Delete") }
+                    // The editor pops immediately; the snackbar belongs to
+                    // VaultScaffold, so it lands on the notes list behind it.
+                    undo?.post(TrashItemKind.NOTE, 1) {
+                        container.noteRepository.restore(listOf(noteId))
+                    }
+                }) { Text(stringResource(R.string.delete_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
             },
         )
     }

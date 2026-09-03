@@ -8,16 +8,19 @@ import SwiftUI
 final class AlbumGridViewModel {
     let album: Album
     private let repository: any PhotoRepository
+    private let defaults: UserDefaults
     let importer: PhotoImporter
 
     private(set) var photos: [Photo] = []
     var isSelecting = false
     var selection: Set<UUID> = []
 
-    init(album: Album, repository: any PhotoRepository, importer: PhotoImporter) {
+    init(album: Album, repository: any PhotoRepository, importer: PhotoImporter,
+         defaults: UserDefaults = .standard) {
         self.album = album
         self.repository = repository
         self.importer = importer
+        self.defaults = defaults
     }
 
     func reload() {
@@ -28,8 +31,11 @@ final class AlbumGridViewModel {
         photos.filter { selection.contains($0.id) }
     }
 
+    /// Move-to-album targets, in the order the user chose for the gallery
+    /// (decisions §4) — the menu must not silently fall back to `manual`.
     var otherAlbums: [Album] {
-        repository.albums().filter { $0.id != album.id }
+        repository.albums(sortedBy: SortPreferences.albumSort(defaults: defaults))
+            .filter { $0.id != album.id }
     }
 
     func toggleSelection(_ photo: Photo) {
@@ -45,14 +51,27 @@ final class AlbumGridViewModel {
         selection = []
     }
 
-    func deleteSelected() async {
-        try? await repository.deletePhotos(selectedPhotos)
+    /// Soft-deletes the selection; returns the trashed ids for the undo toast.
+    @discardableResult
+    func deleteSelected() -> [UUID] {
+        let ids = delete(selectedPhotos)
         exitSelectMode()
-        reload()
+        return ids
     }
 
-    func delete(_ photo: Photo) async {
-        try? await repository.deletePhotos([photo])
+    /// Soft-deletes the photos (files stay until purge); returns their ids.
+    @discardableResult
+    func delete(_ photos: [Photo]) -> [UUID] {
+        guard !photos.isEmpty else { return [] }
+        let ids = photos.map(\.id)
+        try? repository.deletePhotos(photos)
+        reload()
+        return ids
+    }
+
+    /// Undo path: photos return at their original `sortIndex`.
+    func restorePhotos(ids: [UUID]) {
+        try? repository.restorePhotos(ids: ids)
         reload()
     }
 
@@ -68,9 +87,12 @@ final class AlbumGridViewModel {
     }
 
     /// Import runs at the repository level keyed by albumId, so it completes
-    /// even if the vault locked during the picker round-trip.
-    func importPicked(_ items: [PhotosPickerItem]) async {
-        await importer.importItems(items, albumId: album.id)
+    /// even if the vault locked during the picker round-trip. Returns how many
+    /// videos failed, so the screen can surface `video_import_failed` (N3).
+    @discardableResult
+    func importPicked(_ items: [PhotosPickerItem]) async -> Int {
+        let failedVideos = await importer.importItems(items, albumId: album.id)
         reload()
+        return failedVideos
     }
 }

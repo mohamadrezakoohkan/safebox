@@ -54,4 +54,132 @@
     <string name="onboarding_page4_title">Press = to enter</string>
     <string name="onboarding_page4_body">To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden.</string>
     <string name="onboarding_page4_warning">There is no recovery. If you forget your code, the vault stays locked forever.</string>
+
+    <!-- Iteration 2 shared string table (iteration-2-decisions §10) — IDs identical on iOS (Localizable.xcstrings / VaultCopy). -->
+
+    <!-- Vault tabs -->
+    <string name="vault_tab_gallery">Gallery</string>
+    <string name="vault_tab_notes">Notes</string>
+    <string name="vault_tab_contacts">Contacts</string>
+    <string name="vault_tab_settings">Settings</string>
+
+    <!-- Common actions -->
+    <string name="cancel_action">Cancel</string>
+    <string name="delete_action">Delete</string>
+    <string name="done_action">Done</string>
+    <string name="ok_action">OK</string>
+    <string name="select_action">Select</string>
+    <string name="undo_action">Undo</string>
+    <string name="selection_count">%1$d selected</string>
+
+    <!-- Empty states (P2) -->
+    <string name="empty_albums_title">No albums yet</string>
+    <string name="empty_albums_body">Albums keep your imported photos and videos organized.</string>
+    <string name="empty_albums_action">Create album</string>
+    <string name="empty_photos_title">No photos yet</string>
+    <string name="empty_photos_body">Imports are copies — the originals stay in your library.</string>
+    <string name="empty_photos_action">Import photos</string>
+    <string name="empty_notes_title">No notes yet</string>
+    <string name="empty_notes_body">Notes support markdown with a live preview.</string>
+    <string name="empty_notes_action">New note</string>
+    <string name="empty_contacts_title">No contacts yet</string>
+    <string name="empty_contacts_body">Contacts live only in this vault.</string>
+    <string name="empty_contacts_action">Add contact</string>
+    <string name="empty_results_title">No results</string>
+    <string name="empty_results_body">Check the spelling or try a different search.</string>
+
+    <!-- Delete confirmations (P3, P6) -->
+    <string name="confirm_delete_album">Delete album and its %1$d photos?</string>
+    <string name="confirm_delete_photo">Delete this photo?</string>
+    <string name="confirm_delete_photos">Delete %1$d photos?</string>
+    <string name="confirm_delete_note">Delete this note?</string>
+    <string name="confirm_delete_notes">Delete %1$d notes?</string>
+    <string name="confirm_delete_contact">Delete this contact?</string>
+    <string name="confirm_delete_contacts">Delete %1$d contacts?</string>
+    <string name="confirm_delete_body_trash">You can restore it from Recently deleted for 30 days.</string>
+
+    <!-- Undo snackbar messages (P3) -->
+    <string name="deleted_album">Album deleted</string>
+    <string name="deleted_photo">Photo deleted</string>
+    <string name="deleted_photos">%1$d photos deleted</string>
+    <string name="deleted_note">Note deleted</string>
+    <string name="deleted_notes">%1$d notes deleted</string>
+    <string name="deleted_contact">Contact deleted</string>
+    <string name="deleted_contacts">%1$d contacts deleted</string>
+
+    <!-- Recently deleted (P3) -->
+    <string name="trash_title">Recently deleted</string>
+    <string name="trash_subtitle">Items are kept for 30 days, then deleted permanently.</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_delete_now">Delete now</string>
+    <string name="trash_empty">Empty</string>
+    <string name="trash_empty_confirm_title">Delete everything in Recently deleted?</string>
+    <string name="trash_empty_confirm_body">This permanently deletes every item here. This cannot be undone.</string>
+    <string name="trash_empty_state_title">Nothing here</string>
+    <string name="trash_empty_state_body">Deleted items appear here for 30 days.</string>
+    <string name="trash_section_albums">Albums</string>
+    <string name="trash_section_photos">Photos</string>
+    <string name="trash_section_notes">Notes</string>
+    <string name="trash_section_contacts">Contacts</string>
+    <string name="trash_days_left">%1$d days left</string>
+    <string name="trash_photo_count">%1$d photos</string>
+
+    <!-- Sort (P4) -->
+    <string name="sort_title">Sort by</string>
+    <string name="sort_album_manual">Manual</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_date_created">Date created</string>
+    <string name="sort_photo_count">Photo count</string>
+    <string name="sort_date_modified">Date modified</string>
+    <string name="sort_note_title">Title</string>
+
+    <!-- Settings (P5) -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_section_data">Data</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_lock_now">Lock now</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_how_it_works">How it works</string>
+    <string name="settings_how_it_works_subtitle">Revisit the guide</string>
+    <string name="settings_privacy_title">Privacy</string>
+    <string name="settings_privacy_subtitle">All data stays on this device.</string>
+    <!-- Revised by decisions §13: the app can no longer claim it "sends nothing anywhere". -->
+    <string name="settings_privacy_body">All data stays on this device — no accounts, no analytics, no cloud sync. The only time this app connects to the internet is when you tap Check for updates.</string>
+    <!-- Back-navigation icon label (Android-only: iOS uses the system back). Recorded in scratchpad/extra-strings.md. -->
+    <string name="back_action">Back</string>
+    <string name="settings_licenses">Open-source licenses</string>
+    <!-- Android-only (no licenses row on iOS, decisions §5); N3 appends Media3. Recorded in scratchpad/extra-strings.md. -->
+    <string name="settings_licenses_body">Jetpack (Apache 2.0), Media3 (Apache 2.0), Coil (Apache 2.0), Kotlin &amp; kotlinx libraries (Apache 2.0).</string>
+    <string name="onboarding_done">Done</string>
+
+    <!-- Source link + manual update check (decisions §13) -->
+    <string name="settings_source_code">Source code</string>
+    <string name="settings_source_code_subtitle">View this app on GitHub</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_update_checking">Checking…</string>
+    <string name="settings_update_up_to_date">Up to date</string>
+    <string name="settings_update_available">Version %1$s available</string>
+    <string name="settings_update_failed">Couldn\'t check for updates</string>
+
+    <!-- Global search (N1) -->
+    <string name="search_title">Search</string>
+    <string name="search_placeholder">Notes, contacts, albums</string>
+    <string name="search_no_query_title">Search your vault</string>
+    <string name="search_no_query_body">Find notes, contacts, and albums by name or content.</string>
+    <string name="search_section_albums">Albums</string>
+    <string name="search_section_notes">Notes</string>
+    <string name="search_section_contacts">Contacts</string>
+
+    <!-- Photo metadata (N2) -->
+    <string name="photo_info_title">Details</string>
+    <string name="photo_info_dimensions">Dimensions</string>
+    <string name="photo_info_size">File size</string>
+    <string name="photo_info_type">Type</string>
+    <string name="photo_info_imported">Imported</string>
+    <string name="photo_info_duration">Duration</string>
+
+    <!-- Video / import (N3) -->
+    <string name="video_import_failed">Some videos could not be imported.</string>
+    <string name="import_progress">Importing %1$d/%2$d…</string>
 </resources>

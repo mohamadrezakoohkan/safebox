@@ -2,17 +2,16 @@ import Foundation
 import SwiftData
 
 /// Versioned schema from day one — retrofitting versioning after users have
-/// stores is the painful part.
-enum SchemaV1: VersionedSchema {
-    static let versionIdentifier = Schema.Version(1, 0, 0)
-    static var models: [any PersistentModel.Type] {
-        [Album.self, Photo.self, Note.self, Tag.self, Contact.self]
-    }
-}
-
+/// stores is the painful part. `SchemaV1` (Persistence/SchemaV1.swift) is the
+/// frozen iteration-1 snapshot; `SchemaV2` (Persistence/Models.swift) is live.
+/// The single iteration-2 migration is additive (nullable `deletedAt` columns,
+/// `mediaType` with a literal default, nullable `durationMs`), so it is a
+/// lightweight stage (decisions §0).
 enum SafeBoxMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
+    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
+    static var stages: [MigrationStage] { [migrateV1toV2] }
+
+    static let migrateV1toV2 = MigrationStage.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)
 }
 
 enum ModelContainerFactory {
@@ -33,10 +32,16 @@ enum ModelContainerFactory {
         values.isExcludedFromBackup = true
         try? url.setResourceValues(values)
 
-        let storeURL = root.appendingPathComponent("store.sqlite")
+        return try onDisk(storeURL: root.appendingPathComponent("store.sqlite"))
+    }
+
+    /// Opens (or creates) the store at `storeURL` with the live schema and the
+    /// migration plan — the one code path both `live()` and the migration test
+    /// go through, so the test exercises exactly what the app runs.
+    static func onDisk(storeURL: URL) throws -> ModelContainer {
         let configuration = ModelConfiguration(url: storeURL)
         let container = try ModelContainer(
-            for: Schema(versionedSchema: SchemaV1.self),
+            for: Schema(versionedSchema: SchemaV2.self),
             migrationPlan: SafeBoxMigrationPlan.self,
             configurations: configuration
         )
@@ -62,7 +67,7 @@ enum ModelContainerFactory {
         // is combined with an in-memory store (previews/tests only).
         // swiftlint:disable:next force_try
         return try! ModelContainer(
-            for: Schema(versionedSchema: SchemaV1.self),
+            for: Schema(versionedSchema: SchemaV2.self),
             configurations: configuration
         )
     }

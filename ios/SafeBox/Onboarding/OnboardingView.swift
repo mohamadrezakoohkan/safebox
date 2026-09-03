@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Copy for the first-run guide. Deliberately NOT part of LockCopy: the guide
-/// runs only while no passcode exists, so vault vocabulary is allowed here —
-/// it never appears once the disguise is armed. Keys match the shared
-/// cross-platform copy-table IDs; translations live in Localizable.xcstrings.
+/// Copy for the guide. Deliberately NOT part of LockCopy: the guide runs only
+/// while no passcode exists (first run) or inside the unlocked vault (revisit
+/// from Settings), so vault vocabulary is allowed here — it never appears on
+/// the armed disguise. Keys match the shared cross-platform copy-table IDs;
+/// translations live in Localizable.xcstrings. The revisit label is
+/// `VaultCopy.onboardingDone` (`onboarding_done`).
 private enum OnboardingCopy {
     static let skip = localizedCopy("onboarding_skip", "Skip")
     static let next = localizedCopy("onboarding_next", "Next")
@@ -31,11 +33,16 @@ private enum OnboardingCopy {
 private let successGreen = Color(hex: 0x4ADE80)
 private let pageCount = 4
 
-/// First-run guide: what the app really is and how the key-sequence passcode
-/// works. Shown only while no passcode exists (fresh install / post-erase) —
-/// once a vault is set up the disguise is never preceded by an explainer.
+/// The guide: what the app really is and how the key-sequence passcode works.
+/// `.firstRun` shows it while no passcode exists (fresh install / post-erase),
+/// before the calculator ever appears — once a vault is set up the disguise is
+/// never preceded by an explainer. `.revisit` re-opens the same pages from
+/// Settings inside the unlocked vault; there every finish path is a plain
+/// dismissal (decisions §5). Persisting completion is the caller's job, gated
+/// by `OnboardingSentinel.recordCompletion(for:)`.
 /// Styled with the disguise palette so it flows straight into the calculator.
 struct OnboardingView: View {
+    let mode: OnboardingMode
     let onFinish: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -44,17 +51,38 @@ struct OnboardingView: View {
     private var theme: DisguiseTheme { DisguiseTheme.theme(for: colorScheme) }
     private var isLast: Bool { page == pageCount - 1 }
 
+    /// Top-right: Skip on the first run, Done on a revisit.
+    private var trailingTitle: String {
+        switch mode {
+        case .firstRun: OnboardingCopy.skip
+        case .revisit: VaultCopy.onboardingDone
+        }
+    }
+
+    /// Final CTA: "Set my code" leads into setup on the first run; a revisit
+    /// has nothing to set up, so it reads Done like the top-right button.
+    private var finalTitle: String {
+        switch mode {
+        case .firstRun: OnboardingCopy.start
+        case .revisit: VaultCopy.onboardingDone
+        }
+    }
+
+    private var showsTrailingButton: Bool {
+        !isLast || mode.showsTrailingButtonOnLastPage
+    }
+
     var body: some View {
         ZStack {
             theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack {
                     Spacer()
-                    Button(OnboardingCopy.skip, action: onFinish)
+                    Button(trailingTitle, action: onFinish)
                         .font(.system(size: 15))
                         .foregroundStyle(theme.caption)
-                        .opacity(isLast ? 0 : 1)
-                        .disabled(isLast)
+                        .opacity(showsTrailingButton ? 1 : 0)
+                        .disabled(!showsTrailingButton)
                 }
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
@@ -78,7 +106,7 @@ struct OnboardingView: View {
                         withAnimation { page += 1 }
                     }
                 } label: {
-                    Text(isLast ? OnboardingCopy.start : OnboardingCopy.next)
+                    Text(isLast ? finalTitle : OnboardingCopy.next)
                         .font(.system(size: 17, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
@@ -411,6 +439,10 @@ private struct PageDots: View {
     }
 }
 
-#Preview {
-    OnboardingView(onFinish: {})
+#Preview("First run") {
+    OnboardingView(mode: .firstRun, onFinish: {})
+}
+
+#Preview("Revisit") {
+    OnboardingView(mode: .revisit, onFinish: {})
 }

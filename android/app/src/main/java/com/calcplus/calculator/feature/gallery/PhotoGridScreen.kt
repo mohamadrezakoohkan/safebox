@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,11 +46,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.calcplus.calculator.R
+import com.calcplus.calculator.app.LocalUndoController
+import com.calcplus.calculator.core.domain.repository.ImportProgress
+import com.calcplus.calculator.core.domain.repository.TrashItemKind
 import com.calcplus.calculator.core.ui.components.EmptyState
+import com.calcplus.calculator.core.ui.components.VaultEmptyStates
 import com.calcplus.calculator.di.AppContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +76,7 @@ fun PhotoGridScreen(
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val isSelecting by viewModel.isSelecting.collectAsStateWithLifecycle()
     val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    val undo = LocalUndoController.current
 
     var confirmDelete by remember { mutableStateOf(false) }
     var showMoveMenu by remember { mutableStateOf(false) }
@@ -85,9 +92,20 @@ fun PhotoGridScreen(
     }
     val launchPicker = {
         container.lockManager.beginExternalActivity()
+        // Decisions §9: the vault holds mixed media, so the picker offers both.
+        // The begin/endExternalActivity protocol is unchanged — it is what keeps
+        // the picker round-trip from tripping the background lock.
         pickerLauncher.launch(
-            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
         )
+    }
+
+    // A video the OS handed over but could not be probed leaves no row and no
+    // file; the user is told through the vault's one snackbar host (decisions §9).
+    LaunchedEffect(undo) {
+        container.photoRepository.videoImportFailures.collect {
+            undo?.postNotice(R.string.video_import_failed)
+        }
     }
 
     Scaffold(
@@ -96,7 +114,10 @@ fun PhotoGridScreen(
                 title = { Text(albumName) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back_action),
+                        )
                     }
                 },
                 actions = {
@@ -122,12 +143,19 @@ fun PhotoGridScreen(
                                 }
                             }
                             IconButton(onClick = { confirmDelete = true }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = stringResource(R.string.delete_action),
+                                )
                             }
                         }
-                        TextButton(onClick = { viewModel.exitSelecting() }) { Text("Cancel") }
+                        TextButton(onClick = { viewModel.exitSelecting() }) {
+                            Text(stringResource(R.string.cancel_action))
+                        }
                     } else if (photos.orEmpty().isNotEmpty()) {
-                        TextButton(onClick = { viewModel.startSelecting() }) { Text("Select") }
+                        TextButton(onClick = { viewModel.startSelecting() }) {
+                            Text(stringResource(R.string.select_action))
+                        }
                     }
                 },
             )
@@ -145,10 +173,7 @@ fun PhotoGridScreen(
         if (photoList.isEmpty() && !importProgress.isActive) {
             EmptyState(
                 modifier = Modifier.padding(padding),
-                icon = Icons.Filled.Photo,
-                title = "No photos yet",
-                description = "Originals remain in your library — delete them in Photos if desired.",
-                actionLabel = "Import photos",
+                content = VaultEmptyStates.photos,
                 onAction = launchPicker,
             )
         } else {
@@ -177,6 +202,11 @@ fun PhotoGridScreen(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
                             )
+                            // Play glyph + duration pill (bottom-START); the
+                            // selection indicator below stays bottom-END.
+                            if (photo.isVideo) {
+                                VideoCellOverlay(durationMs = photo.durationMs)
+                            }
                             if (isSelecting) {
                                 Icon(
                                     imageVector = if (photo.id in selection) {
@@ -195,37 +225,64 @@ fun PhotoGridScreen(
                     }
                 }
                 if (importProgress.isActive) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(24.dp)
-                            .clip(MaterialTheme.shapes.large)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.padding(end = 10.dp))
-                        Text("Importing ${importProgress.completed}/${importProgress.total}…")
-                    }
+                    // Decisions §2: with zero photos the empty state stays suppressed and this
+                    // pill is the only content, so it is centered; over photos it docks at the bottom.
+                    ImportProgressPill(
+                        progress = importProgress,
+                        modifier = Modifier.align(importPillAlignment(gridIsEmpty = photoList.isEmpty())),
+                    )
                 }
             }
         }
     }
 
     if (confirmDelete) {
+        val count = selection.size
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete photos") },
-            text = { Text("Delete ${selection.size} photos? This cannot be undone.") },
+            title = {
+                Text(
+                    if (count == 1) stringResource(R.string.confirm_delete_photo)
+                    else stringResource(R.string.confirm_delete_photos, count)
+                )
+            },
+            text = { Text(stringResource(R.string.confirm_delete_body_trash)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    viewModel.deleteSelected()
-                }) { Text("Delete") }
+                    val deleted = viewModel.deleteSelected()
+                    undo?.post(TrashItemKind.PHOTO, deleted.size) {
+                        container.photoRepository.restore(deleted)
+                    }
+                }) { Text(stringResource(R.string.delete_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.cancel_action))
+                }
             },
         )
+    }
+}
+
+/**
+ * Where the import progress pill sits in the grid area: centered when the grid has nothing
+ * else to show (decisions §2), docked above the bottom edge once photos are present.
+ */
+internal fun importPillAlignment(gridIsEmpty: Boolean): Alignment =
+    if (gridIsEmpty) Alignment.Center else Alignment.BottomCenter
+
+@Composable
+private fun ImportProgressPill(progress: ImportProgress, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .padding(24.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.padding(end = 10.dp))
+        Text(stringResource(R.string.import_progress, progress.completed, progress.total))
     }
 }

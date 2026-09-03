@@ -1,17 +1,39 @@
 import Foundation
 import SwiftData
 
+/// Notes and tags. Since P3 `delete` is a SOFT delete (`deletedAt = now`);
+/// `notes(sortedBy:)` returns live rows only. Tags are never trashed.
 @MainActor
 protocol NoteRepository: AnyObject {
-    func notes() -> [Note]
+    /// Live notes in the requested order (decisions §4). Sorting happens here,
+    /// on the fetched list — never in a view body.
+    func notes(sortedBy sort: NoteSort) -> [Note]
+    /// By-id lookup for a navigation route (N1): a path carries ids, never
+    /// models, so the destination re-fetches. `nil` once the row is gone.
+    func note(withId id: UUID) -> Note?
     @discardableResult
     func createNote(body: String) throws -> Note
     func save(note: Note, body: String) throws
     func delete(note: Note) throws
+    /// Bulk soft delete in one call (P6 multi-select).
+    func delete(notes: [Note]) throws
     func tags() -> [Tag]
     @discardableResult
     func findOrCreateTag(named name: String) throws -> Tag
     func setTags(_ tags: [Tag], on note: Note) throws
+
+    // MARK: Trash (P3)
+
+    func trashedNotes() -> [Note]
+    func restore(ids: [UUID]) throws
+    /// Hard delete of the rows (notes own no files).
+    func purge(ids: [UUID]) throws
+    func purgeExpired(now: Date)
+}
+
+extension NoteRepository {
+    /// Notes in the default (date_modified, newest first) order.
+    func notes() -> [Note] { notes(sortedBy: .dateModified) }
 }
 
 @MainActor
@@ -26,9 +48,24 @@ final class SwiftDataNoteRepository: NoteRepository {
         self.context = container.mainContext
     }
 
-    func notes() -> [Note] {
-        let descriptor = FetchDescriptor<Note>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
-        return (try? context.fetch(descriptor)) ?? []
+    func notes(sortedBy sort: NoteSort) -> [Note] {
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.deletedAt == nil },
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        let live = (try? context.fetch(descriptor)) ?? []
+        return VaultSorting.sorted(live, by: sort)
+    }
+
+    /// LIVE rows only: a route can outlive the note it points at (Delete now in
+    /// Recently deleted, expiry, Erase everything), and a trashed note must not
+    /// render as a pushed editor.
+    func note(withId id: UUID) -> Note? {
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate { $0.id == id && $0.deletedAt == nil }
+        )
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first
     }
 
     @discardableResult
@@ -50,7 +87,14 @@ final class SwiftDataNoteRepository: NoteRepository {
     }
 
     func delete(note: Note) throws {
-        context.delete(note)
+        try delete(notes: [note])
+    }
+
+    func delete(notes: [Note]) throws {
+        let stamp = Date.now
+        for note in notes {
+            note.deletedAt = stamp
+        }
         try context.save()
     }
 
@@ -76,5 +120,40 @@ final class SwiftDataNoteRepository: NoteRepository {
     func setTags(_ tags: [Tag], on note: Note) throws {
         note.tags = tags
         try context.save()
+    }
+
+    // MARK: - Trash
+
+    func trashedNotes() -> [Note] {
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { $0.deletedAt != nil })
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    func restore(ids: [UUID]) throws {
+        guard !ids.isEmpty else { return }
+        for note in fetch(ids: ids) {
+            note.deletedAt = nil
+        }
+        try context.save()
+    }
+
+    func purge(ids: [UUID]) throws {
+        guard !ids.isEmpty else { return }
+        for note in fetch(ids: ids) {
+            context.delete(note)
+        }
+        try context.save()
+    }
+
+    func purgeExpired(now: Date) {
+        let expired = trashedNotes()
+            .filter { TrashPolicy.isExpired(deletedAt: $0.deletedAt ?? now, now: now) }
+            .map(\.id)
+        try? purge(ids: expired)
+    }
+
+    private func fetch(ids: [UUID]) -> [Note] {
+        let descriptor = FetchDescriptor<Note>(predicate: #Predicate { ids.contains($0.id) })
+        return (try? context.fetch(descriptor)) ?? []
     }
 }
