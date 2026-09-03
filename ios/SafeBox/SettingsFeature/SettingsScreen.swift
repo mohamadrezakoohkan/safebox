@@ -92,9 +92,13 @@ struct SettingsScreen: View {
                 // disguise themes) are deliberately not shown.
             }
             .navigationTitle(VaultCopy.settingsTitle)
-            // Abandons any in-flight update request when this screen goes
-            // away — including the vault teardown on lock (decisions §13).
-            .onDisappear { updateCheck.cancel() }
+            // Deliberately NO .onDisappear { updateCheck.cancel() }. This Form
+            // disappears transiently all the time — a NavigationLink push into
+            // Privacy or Recently deleted, a sheet, a tab change, the snapshot
+            // cover on resign-active — and cancelling there discarded results
+            // the user had just asked for, leaving the row blank. Abandonment
+            // on lock (decisions §13) is tied to this @State model being
+            // deallocated with the vault instead; see UpdateCheckTaskBox.
             .sheet(isPresented: $showChangeFlow) {
                 ChangePasscodeFlow(
                     session: PasscodeEntrySession(passcodeStore: container.passcodeStore),

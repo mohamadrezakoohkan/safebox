@@ -309,18 +309,43 @@ struct UpdateCheckModelTests {
         #expect(model.state == .available(version: "2.0", releasesURL: UpdateEndpoint.defaultReleasesURL))
     }
 
-    @Test func cancelAbandonsTheRequestAndReturnsToIdle() async {
+    // MARK: - A completed result is never discarded
+
+    /// Regression: the row used to go blank after "Checking…". `SettingsScreen`
+    /// cancelled on `onDisappear`, and a Settings Form disappears transiently
+    /// (a NavigationLink push, a sheet, a tab change, the snapshot cover on
+    /// resign-active). The cancel reset the state to `idle`, whose subtitle is
+    /// `nil`, so the row rendered title-only.
+    @Test func aCompletedResultSurvivesACancelRacingIt() async {
         let gate = FetchGate()
         let model = makeModel(fetch: { try await gate.wait() })
         model.check()
         #expect(model.state == .checking)
-        // The vault tearing down on lock (or a tab change) hits this path.
+        // Exactly what a transient disappear used to trigger.
         model.cancel()
-        #expect(model.state == .idle)
-        // A late response from the abandoned request must not write state.
+        // The request had in fact already completed; its answer must land.
         await gate.release(with: Data(#"{"latestVersion": "9.9"}"#.utf8))
         await model.waitForCurrentCheck()
-        #expect(model.state == .idle)
+        #expect(model.state == .available(version: "9.9", releasesURL: UpdateEndpoint.defaultReleasesURL))
+        #expect(model.state != .idle)
+        #expect(model.state.subtitle != nil)
+    }
+
+    /// `idle` — the only state with no subtitle — is reserved for "never
+    /// checked". Once a check has started and been allowed to finish, the row
+    /// always shows an outcome, whatever the fetch did.
+    @Test(arguments: UpdateCheckFetchOutcome.allCases)
+    func theRowIsNeverBlankAfterAFinishedCheck(outcome: UpdateCheckFetchOutcome) async {
+        let model = makeModel(fetch: outcome.fetch)
+        model.check()
+        #expect(model.state == .checking)
+        // A teardown-style cancel racing the answer changes nothing.
+        model.cancel()
+        await model.waitForCurrentCheck()
+        #expect(model.state != .idle, "blank row after \(outcome)")
+        #expect(model.state != .checking, "stuck on Checking… after \(outcome)")
+        #expect(model.state.subtitle != nil, "no subtitle after \(outcome)")
+        #expect(model.state == outcome.expected)
     }
 
     @Test func cancelLeavesASettledStateAlone() async {
@@ -330,9 +355,120 @@ struct UpdateCheckModelTests {
         model.cancel()
         #expect(model.state == .upToDate)
     }
+
+    // MARK: - Teardown actually abandons the request
+
+    /// Decisions §13: the in-flight request must die with the vault. The model
+    /// is `@State` on `SettingsScreen`, so that means its deallocation — not
+    /// `onDisappear` — has to cancel the task.
+    @Test func releasingTheModelCancelsTheInFlightTask() async {
+        let probe = FetchProbe()
+        var model: UpdateCheckModel? = makeModel(fetch: {
+            await probe.markStarted()
+            await withTaskCancellationHandler {
+                // Long enough that only cancellation ends it.
+                try? await Task.sleep(for: .seconds(30))
+            } onCancel: {
+                Task { await probe.markCancelled() }
+            }
+            throw UpdateCheckFailure.badResponse
+        })
+        model?.check()
+        _ = await waitUntil { await probe.started }
+
+        // The vault tears down: SettingsScreen and its @State model go away.
+        model = nil
+
+        let cancelled = await waitUntil { await probe.cancelled }
+        #expect(cancelled, "releasing the model must cancel the in-flight request")
+    }
+
+    /// The other half of §13: nothing may be written after teardown. The
+    /// `[weak self]` capture is what guarantees it, so a response arriving
+    /// after the model is gone must simply evaporate.
+    @Test func aLateResponseAfterTeardownWritesNothing() async {
+        let gate = FetchGate()
+        let probe = FetchProbe()
+        var model: UpdateCheckModel? = makeModel(fetch: {
+            await probe.markStarted()
+            let data = try await gate.wait()
+            await probe.markFinished()
+            return data
+        })
+        model?.check()
+        _ = await waitUntil { await probe.started }
+
+        model = nil
+        // The abandoned request answers late; there is nobody left to tell.
+        await gate.release(with: Data(#"{"latestVersion": "9.9"}"#.utf8))
+
+        let finished = await waitUntil { await probe.finished }
+        #expect(finished)
+        // Ran to completion against a deallocated model, writing no state.
+        let calls = await gate.calls
+        #expect(calls == 1)
+    }
+}
+
+// MARK: - Parameterised fetch outcomes
+
+/// The three ways the injected fetch can end. Each must leave a visible row.
+enum UpdateCheckFetchOutcome: Sendable, CaseIterable, CustomStringConvertible {
+    case success
+    case malformedJSON
+    case thrown
+
+    var fetch: UpdateFetch {
+        switch self {
+        case .success:
+            return { Data(#"{"latestVersion": "2.0"}"#.utf8) }
+        case .malformedJSON:
+            return { Data("<html><body>404</body></html>".utf8) }
+        case .thrown:
+            return { throw UpdateCheckFailure.badResponse }
+        }
+    }
+
+    var expected: UpdateCheckState {
+        switch self {
+        case .success:
+            return .available(version: "2.0", releasesURL: UpdateEndpoint.defaultReleasesURL)
+        case .malformedJSON, .thrown:
+            return .failed
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .success: return "success"
+        case .malformedJSON: return "malformed JSON"
+        case .thrown: return "thrown error"
+        }
+    }
 }
 
 // MARK: - Test doubles
+
+/// Records lifecycle signals from an injected fetch closure.
+private actor FetchProbe {
+    private(set) var started = false
+    private(set) var cancelled = false
+    private(set) var finished = false
+
+    func markStarted() { started = true }
+    func markCancelled() { cancelled = true }
+    func markFinished() { finished = true }
+}
+
+/// Polls `condition` for at most ~2 s. Bounded on purpose: a regression fails
+/// the test instead of hanging the suite.
+private func waitUntil(_ condition: @Sendable () async -> Bool) async -> Bool {
+    for _ in 0..<400 {
+        if await condition() { return true }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return await condition()
+}
 
 /// Counts fetch invocations from a `@Sendable` closure.
 private actor FetchCounter {

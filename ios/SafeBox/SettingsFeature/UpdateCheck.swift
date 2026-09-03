@@ -210,11 +210,65 @@ enum UpdateCheck {
     }
 }
 
+// MARK: - Task ownership
+
+/// Holds the in-flight check's `Task` so it can be cancelled from a
+/// `nonisolated deinit`.
+///
+/// This exists because of Swift 6: a `@MainActor` class may not touch its own
+/// main-actor stored properties from `deinit`, so `UpdateCheckModel` cannot
+/// cancel its task there directly. The box is a plain reference type held only
+/// by the model, so it dies exactly when the model dies — which is when the
+/// vault tears down on lock (decisions §13) — and its `deinit` cancels.
+///
+/// `@unchecked Sendable`: every access to `task` goes through `lock`, and by
+/// the time `deinit` runs no other reference can exist.
+private final class UpdateCheckTaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+
+    var current: Task<Void, Never>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return task
+    }
+
+    /// Installs a new task, cancelling whatever it replaces.
+    func replace(with newTask: Task<Void, Never>) {
+        lock.lock()
+        let previous = task
+        task = newTask
+        lock.unlock()
+        previous?.cancel()
+    }
+
+    /// Abandons the in-flight request. The task is *not* cleared, so the model
+    /// can still await it.
+    func cancel() {
+        current?.cancel()
+    }
+
+    deinit {
+        // No other reference survives, so reading without the lock is safe.
+        task?.cancel()
+    }
+}
+
 // MARK: - Row model
 
-/// Drives the "Check for updates" row. Owned by `SettingsScreen`, so it is
-/// created when the vault's Settings tab appears and destroyed with the vault
-/// on lock; `cancel()` abandons any in-flight request at that point.
+/// Drives the "Check for updates" row. Owned by `SettingsScreen` as `@State`,
+/// so it is created with the vault's Settings tab and destroyed with the vault
+/// on lock — and *that deallocation* is what abandons an in-flight request
+/// (decisions §13), via `UpdateCheckTaskBox.deinit`.
+///
+/// Ownership rule, learned from a bug: abandonment is tied to the model's
+/// lifetime, never to the view's `onDisappear`. A Settings screen disappears
+/// transiently all the time — a `NavigationLink` push, a sheet, a tab change,
+/// the window-level snapshot cover on resign-active — and cancelling there
+/// threw away results the user had already asked for, leaving the row blank.
+/// A completed fetch is therefore *always* applied unless the model is gone or
+/// a newer check has superseded it, and the row never returns to `idle` once a
+/// check has started: `idle` means "never checked".
 @MainActor
 @Observable
 final class UpdateCheckModel {
@@ -222,9 +276,10 @@ final class UpdateCheckModel {
 
     private let currentVersion: String
     private let fetch: UpdateFetch
-    private var task: Task<Void, Never>?
-    /// Bumped by every `check()` and by `cancel()`, so a superseded or
-    /// abandoned request can never write a stale state.
+    @ObservationIgnored private let taskBox = UpdateCheckTaskBox()
+    /// Bumped by every `check()`, so a superseded request can never write a
+    /// stale state. Deliberately *not* bumped by `cancel()`: a result that has
+    /// already arrived must still be shown.
     private var generation = 0
 
     nonisolated init(currentVersion: String = AppVersion.current,
@@ -252,33 +307,38 @@ final class UpdateCheckModel {
         state = .checking
         let fetch = fetch
         let currentVersion = currentVersion
-        task = Task { [weak self] in
+        // No cancellation check between the fetch returning and the state
+        // being applied: once bytes are in hand the user gets an answer. A
+        // fetch that *does* honour cancellation throws, which resolves to
+        // `failed` — never back to blank.
+        let task = Task { [weak self] in
             let resolved: UpdateCheckState
             do {
                 let data = try await fetch()
-                try Task.checkCancellation()
                 resolved = UpdateCheck.state(for: data, currentVersion: currentVersion)
             } catch {
-                if Task.isCancelled { return }
                 resolved = .failed
             }
+            // `weak self`: after the vault tears down, nothing is written.
             guard let self, generation == self.generation else { return }
             self.state = resolved
         }
+        taskBox.replace(with: task)
     }
 
-    /// Called when the Settings screen goes away (tab change, lock teardown).
-    /// The request is abandoned and the row returns to `idle`, so a later
-    /// visit can check again instead of being stuck on "Checking…".
+    /// Abandons the in-flight request without touching `state`.
+    ///
+    /// Teardown happens through deallocation (see `UpdateCheckTaskBox`), so no
+    /// view calls this; it stays as an explicit API for tests and for any
+    /// future caller that genuinely wants to stop the request. It must never
+    /// blank a result the user can see: a fetch that has already completed
+    /// still lands, and a fetch that honours cancellation resolves to `failed`.
     func cancel() {
-        task?.cancel()
-        task = nil
-        generation += 1
-        if state == .checking { state = .idle }
+        taskBox.cancel()
     }
 
     /// Test seam: waits for the in-flight check to finish.
     func waitForCurrentCheck() async {
-        await task?.value
+        await taskBox.current?.value
     }
 }
