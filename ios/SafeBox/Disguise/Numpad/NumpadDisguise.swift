@@ -4,6 +4,7 @@ import SwiftUI
 /// "passcode", "vault", "unlock" or "SafeBox".
 enum NumpadCopy {
     static let displayName = localizedCopy("numpad_display_name", "PIN pad")
+    static let coverName = localizedCopy("cover_name_notepad", "Notepad+")
     static let tagline = localizedCopy("numpad_tagline", "A plain PIN screen. A wrong PIN shakes and clears, like a phone lock.")
     static let commitGesture = localizedCopy("numpad_commit_gesture", "the ✓ key")
     static let guidePage3Title = localizedCopy("numpad_guide_page3_title", "Your PIN is 4 to 32 digits")
@@ -60,10 +61,14 @@ struct NumpadDisguise: DisguiseProviding {
         tokens: (0...9).map { "D\($0)" }
     )
 
+    /// A locked notes app is an utterly ordinary thing to find on a phone, and
+    /// a PIN pad is exactly how one locks (§9a).
+    var coverIdentityName: String { NumpadCopy.coverName }
+    var alternateIconName: String? { "AppIconNotepad" }
+
     var displayName: String { NumpadCopy.displayName }
     var tagline: String { NumpadCopy.tagline }
     var commitGesture: String { NumpadCopy.commitGesture }
-    var identityGrade: DisguiseIdentityGrade { .incoherent }
     var page3Title: String { NumpadCopy.guidePage3Title }
     var page3Body: String { NumpadCopy.guidePage3Body }
     var page3Try: String { NumpadCopy.guideTry }

@@ -30,7 +30,9 @@ The disguise identity is a **single product decision**, not a per-platform namin
 - **Display name: "Calculator+"** on both platforms (launcher label, store listing title, app switcher label).
 - **Icon:** a neutral, original calculator glyph — must not imitate Apple's or Google's calculator icons or any trademark.
 - **Identifiers:** bundle identifier / applicationId = **`com.calcplus.calculator`** on both platforms. Identifiers must not reference "safebox", the vault, or the owner; they are permanent once shipped, so this is decided now.
-- **Rule:** every piece of externally visible metadata — name, icon, identifiers, launch screen, notification-free behavior, settings-app entry — must pass the *"looks like a calculator"* test. Anything a bystander (or the OS UI) can surface must read as a calculator.
+- **Rule:** every piece of externally visible metadata — name, icon, identifiers, launch screen, notification-free behavior, settings-app entry — must pass the *"looks like an ordinary app"* test. Anything a bystander (or the OS UI) can surface must read as the app the owner's chosen face claims to be.
+
+**Amended by iteration 3 (`iteration-3-decisions.md` §9a).** The bullets above describe the **default** identity, which is still what a fresh install ships with and what the store listing carries. They are no longer fixed for the life of the install: each lock face now has its own **cover identity** — Calculator+, Notepad+ or Gallery+ — and switching the face changes the home-screen icon to match (and the name too, on Android). The identifier bullet is unchanged and genuinely permanent, which is why the app-info screen still reads Calculator+ whatever face is active.
 
 (How the app is presented to *store reviewers* is deliberately different — see §7, Distribution & Store-Review Risk.)
 
@@ -370,7 +372,7 @@ Two of these were built in iteration 1 but never recorded in this plan, and are 
 
 **Layout requirement:** the grouped-list structure keeps room for future rows in the sections that now exist (Security: biometric unlock, decoy passcode, break-in alerts; Data: export/backup). These appear in this plan only so both platforms leave layout room; none are built.
 
-**Superseded by iteration 3:** the Appearance section reserved here for "disguise themes" was not used. Changing the lock face re-enrolls the passcode, so **Change disguise** ships as a row in the **Security** section directly under Change passcode (`iteration-3-decisions.md` §5). Per-face theming remains future work.
+**Superseded by iteration 3:** the Appearance section reserved here for "disguise themes" was not used. Changing the lock face re-enrolls the passcode, so **Change disguise** ships as a row in the **Security** section directly under Change passcode (`iteration-3-decisions.md` §5). Per-face theming remains future work. Note that changing the face also changes the home-screen icon (§9a), so appearance is no longer purely an in-app concern.
 
 ---
 

@@ -24,6 +24,7 @@ import com.calcplus.calculator.core.domain.repository.PasscodeRepository
 import com.calcplus.calculator.core.domain.repository.PhotoRepository
 import com.calcplus.calculator.core.domain.repository.SortPreferences
 import com.calcplus.calculator.core.domain.repository.TrashRepository
+import com.calcplus.calculator.core.disguise.AppIconManager
 import com.calcplus.calculator.core.disguise.DisguiseRegistry
 import com.calcplus.calculator.core.lock.AppLockManager
 import com.calcplus.calculator.feature.calculator.CalculatorDisguise
@@ -71,6 +72,14 @@ class AppContainer(context: Context, val applicationScope: CoroutineScope) {
         listOf(CalculatorDisguise, NumpadDisguise, PatternDisguise)
     )
 
+    /**
+     * Home-screen cover identities (decisions §9a). The alias list is derived
+     * from the registry, in registry order, so the default face's alias is
+     * first — which is also the one the manifest ships enabled.
+     */
+    val appIconManager: AppIconManager =
+        AppIconManager.create(appContext, disguiseRegistry.faces.map { it.coverAlias })
+
     val lockManager = AppLockManager(
         passcodeRepository = passcodeRepository,
         registry = disguiseRegistry,
@@ -81,6 +90,10 @@ class AppContainer(context: Context, val applicationScope: CoroutineScope) {
         // — the mirror key, never the envelope. Unwrapping the envelope here
         // would mean Keystore work in Application.onCreate (decisions §3).
         initialActiveDisguiseId = startupPrefs[PasscodeStore.KEY_ACTIVE_DISGUISE],
+        // Reconciled on background only (see AppLockManager.onAppStop), and
+        // best-effort: a stale icon over a correctly re-enrolled vault is
+        // cosmetic, and it can never be stale anywhere the user can see it.
+        reconcileCoverIdentity = { face -> appIconManager.apply(face) },
     )
 
     val database: SafeBoxDatabase by lazy { SafeBoxDatabase.build(appContext) }

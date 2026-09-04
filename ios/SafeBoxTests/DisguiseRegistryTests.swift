@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SafeBox
 
@@ -26,14 +27,43 @@ struct DisguiseRegistryTests {
         #expect(!registry.resolve(id: "pattern").isCovert)
     }
 
-    @Test func identityGradesMatchTheContract() {
-        #expect(registry.resolve(id: "calculator").identityGrade == .native)
-        #expect(registry.resolve(id: "numpad").identityGrade == .incoherent)
-        #expect(registry.resolve(id: "pattern").identityGrade == .incoherent)
-        // Only the pattern discloses the screen-reader limitation.
+    @Test func onlyThePatternDisclosesTheScreenReaderLimit() {
         #expect(registry.resolve(id: "calculator").a11yNote == nil)
         #expect(registry.resolve(id: "numpad").a11yNote == nil)
         #expect(registry.resolve(id: "pattern").a11yNote == "Not usable with a screen reader")
+    }
+
+    // MARK: - Cover identities (§9a)
+
+    @Test func everyFaceCarriesItsCoverIdentity() {
+        #expect(registry.resolve(id: "calculator").coverIdentityName == "Calculator+")
+        #expect(registry.resolve(id: "numpad").coverIdentityName == "Notepad+")
+        #expect(registry.resolve(id: "pattern").coverIdentityName == "Gallery+")
+        // Only the calculator is the shipped (primary) icon.
+        #expect(registry.resolve(id: "calculator").alternateIconName == nil)
+        #expect(registry.resolve(id: "numpad").alternateIconName == "AppIconNotepad")
+        #expect(registry.resolve(id: "pattern").alternateIconName == "AppIconGallery")
+    }
+
+    @Test func alternateIconNamesAreUniqueAndNonEmpty() {
+        let names = registry.all.compactMap(\.alternateIconName)
+        // Exactly one face — the calculator — declines an alternate.
+        #expect(names.count == registry.all.count - 1)
+        #expect(Set(names).count == names.count, "two faces share an alternate icon")
+        #expect(!names.contains { $0.isEmpty })
+        #expect(registry.all.filter { $0.alternateIconName == nil }.map(\.id) == ["calculator"])
+    }
+
+    /// The build settings half of §9a. `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`
+    /// is what puts these into Info.plist; without it `setAlternateIconName`
+    /// fails silently at runtime and nothing else in the suite would notice.
+    @Test func theAlternatesAreRegisteredInTheBuiltInfoPlist() throws {
+        let icons = try #require(Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any])
+        let alternates = try #require(icons["CFBundleAlternateIcons"] as? [String: Any])
+        for disguise in registry.all {
+            guard let name = disguise.alternateIconName else { continue }
+            #expect(alternates[name] != nil, "\(name) is missing from CFBundleAlternateIcons")
+        }
     }
 
     // MARK: - Alphabet hygiene

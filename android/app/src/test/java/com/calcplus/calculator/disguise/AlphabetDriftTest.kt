@@ -1,6 +1,8 @@
 package com.calcplus.calculator.disguise
 
+import com.calcplus.calculator.R
 import com.calcplus.calculator.core.disguise.AlphabetDescriptor
+import com.calcplus.calculator.core.disguise.CoverAliases
 import com.calcplus.calculator.core.disguise.DisguiseRegistry
 import com.calcplus.calculator.feature.calculator.CalcKey
 import com.calcplus.calculator.feature.calculator.CalculatorDisguise
@@ -97,5 +99,42 @@ class AlphabetDriftTest {
     fun exactlyOneFaceIsCovert() {
         val covert = testRegistry().faces.filter { it.isCovert }.map { it.id }
         assertEquals(listOf("calculator"), covert)
+    }
+
+    // MARK: cover identities (§9a)
+
+    /**
+     * Each face names the alias it wears on the home screen and the label that
+     * alias shows. The alias strings must match the manifest exactly — a typo
+     * would leave the app with no enabled launcher entry after a switch.
+     */
+    @Test
+    fun everyFaceDeclaresItsCoverIdentity() {
+        assertEquals(CoverAliases.CALCULATOR, CalculatorDisguise.coverAlias)
+        assertEquals(R.string.cover_name_calculator, CalculatorDisguise.coverName)
+
+        assertEquals(CoverAliases.NOTEPAD, NumpadDisguise.coverAlias)
+        assertEquals(R.string.cover_name_notepad, NumpadDisguise.coverName)
+
+        assertEquals(CoverAliases.GALLERY, PatternDisguise.coverAlias)
+        assertEquals(R.string.cover_name_gallery, PatternDisguise.coverName)
+    }
+
+    @Test
+    fun coverAliasesAreFullyQualifiedAndUnique() {
+        val aliases = testRegistry().faces.map { it.coverAlias }
+        assertEquals(3, aliases.size)
+        // Two faces sharing an alias would make the swap unable to tell them
+        // apart, and one of them would silently wear the other's identity.
+        assertEquals(aliases.size, aliases.toSet().size)
+        aliases.forEach {
+            assertTrue("'$it' must be fully qualified", it.startsWith("com.calcplus.calculator."))
+        }
+    }
+
+    /** The default face's alias is first, which is the one the manifest enables. */
+    @Test
+    fun theDefaultFaceWearsTheShippedIdentity() {
+        assertEquals(CoverAliases.CALCULATOR, testRegistry().default.coverAlias)
     }
 }

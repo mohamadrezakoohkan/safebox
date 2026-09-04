@@ -18,6 +18,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.calcplus.calculator
         INFOPLIST_FILE: SafeBox/Support/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Cover identities (decisions §9a): the home-screen icon follows the
+        # lock face. INCLUDE_ALL_APPICON_ASSETS makes the compiler emit the
+        # alternate sets at all; ALTERNATE_APPICON_NAMES registers them in
+        # Info.plist so `setAlternateIconName` can find them. Omitting either
+        # fails silently at runtime, so DisguiseRegistryTests pins both.
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: "YES"
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconNotepad AppIconGallery"
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SUPPORTS_MACCATALYST: "NO"
   SafeBoxTests:

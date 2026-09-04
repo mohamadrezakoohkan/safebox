@@ -394,9 +394,68 @@ Both platforms complete a step before either starts the next; the app is shippab
 
 ---
 
+## 9a. Cover identities: the home-screen icon follows the face
+
+**Decided 2026-09-04, after the rest of iteration 3 shipped.** This **reverses the central premise of skeleton §2.1** ("switching disguise never changes the app's icon or name") and retires the identity-grade concept with it. §2.1's *permanent* facts still hold: the bundle identifier and `applicationId` can never change, and the store listing is one listing.
+
+Each face now carries a **cover identity** — the app it appears to be on the home screen:
+
+| Face | Cover identity | String ID | iOS alternate icon | Android alias |
+|---|---|---|---|---|
+| `calculator` | **Calculator+** | `cover_name_calculator` | *(primary icon)* | `.CalculatorAlias` |
+| `numpad` | **Notepad+** | `cover_name_notepad` | `AppIconNotepad` | `.NotepadAlias` |
+| `pattern` | **Gallery+** | `cover_name_gallery` | `AppIconGallery` | `.GalleryAlias` |
+
+The IDs are keyed by **identity, not by face**, which is why they read `cover_name_notepad` rather than `numpad_cover_name` and so depart from §7's per-face `<face_id>_*` convention. A cover identity is a separate concept from the face that selects it — that is exactly what the table above maps — and on Android these strings are the `android:label` of aliases that are themselves named after the identity. Both platforms use this form.
+
+The pairing is the point: a locked **notes** app and a locked **gallery** are utterly ordinary things to find on a phone, and a PIN pad or a pattern is exactly how such an app locks. Icon and lock screen finally agree, which removes the tell §2.1 recorded as an accepted weakness.
+
+**Artwork.** Original, deliberately imitating no vendor. Both new icons reuse the existing disguise palette (bg `#17191C`, slate `#2A2D33`, key `#43484F`, light `#F5F6F7`, amber `#B45309`) and the calculator icon's flat geometric style.
+
+Shapes are authored once in the Android 108×108 adaptive-icon space and emitted two ways — an Android `<vector>` foreground and a 1024×1024 PNG for iOS. **That guarantee is only real because one committed tool does the emitting: `tools/generate_cover_icons.py`.** Edit the shape tables there and re-run it; never hand-edit a generated file, and never "fix" one platform's asset on its own. The first cut of this artwork was produced ad hoc, and both halves inherited the same defect — a Notepad page reaching to y 94, past the safe zone and 4dp low — which then could not be corrected on one side without the two diverging. The generated files carry a do-not-hand-edit header.
+
+`--check` renders the shapes and measures the resulting pixels, asserting that nothing crosses **y 90**. Path data here is mostly relative (`h`/`v`/`a`) segments, so the only absolute y in a rounded rect is its top edge; parsing the numbers reports a shape as ending where it begins, which is exactly how the original defect passed review. Measure the render, not the source.
+
+**Safe zone.** Adaptive icons guarantee only the central 72×72 (18..90), and a circular mask crops to r=36 about (54,54). Rounded-rect *corners* reaching past that circle are normal and are house style here — the shipped calculator's worst corner is r≈46. What must not happen is an *edge* crossing y=90, which crops a shape's silhouette rather than its corners. Both new icons are centred on the 54 midline: notepad 24..84, gallery 26..82.
+
+**Platform asymmetry (accepted, and disclosed in-app).**
+
+- **Android** changes **both icon and name**, via one `activity-alias` per identity, each with its own `android:icon` and `android:label` and a LAUNCHER intent filter. Exactly one alias is enabled at any moment; the main activity itself is not a launcher entry. Switching **enables the new alias before disabling the others**, so the app can never vanish from the launcher, and uses `DONT_KILL_APP` so the process survives. Caveat to disclose: the app-info screen still reads "Calculator+", because that label comes from the application element, not the alias; and some launchers move a renamed icon out of its home-screen position.
+- **iOS** changes **the icon only**. `setAlternateIconName` cannot rename an app, and iOS shows an unsuppressable system alert confirming the icon change. Both facts are stated in the picker rather than worked around. The call is skipped when the requested icon already matches, so no spurious alert is shown.
+
+**When it applies — reconciled on background, not applied on commit.** The obvious design, applying the identity the moment setup or a switch commits, is wrong on Android and was measured to be wrong on device: disabling the alias that started the task tears the **task** down even though `DONT_KILL_APP` keeps the process alive, so the user was dropped onto the launcher the instant they finished setting up, and since backgrounding locks the vault they had to re-enter the code they had just chosen.
+
+**Android therefore reconciles on background; iOS still applies at commit.** This is a deliberate divergence, not an oversight, and it is the one place in iteration 3 where the platforms do different things for a reason other than copy.
+
+- **Android:** `AppLockManager.onAppStop()` reconciles the launcher identity to the *current active face*. The user is already leaving and the vault is already locking, so a task teardown is invisible, and the icon is always correct by the time anyone can see a home screen — you have to background the app to look at one. Reconciling against the active face rather than a remembered pending one also means an abandoned switch can never change the icon, and every background re-asserts the correct alias, so drift self-heals.
+- **iOS:** applied at the three commit points, after the envelope write succeeds. `setAlternateIconName` does not tear down anything, so the Android hazard does not exist; and because iOS shows its confirmation alert on every change, firing it at the moment the user acted is far better than ambushing them with it as they leave the app.
+
+Two consequences worth stating, both Android:
+
+- **The picker-suppression window is exempt.** While the photo picker is in flight the app is foreground wearing a background's clothes: the user returns into the same task with the vault still unlocked. Reconciling there would tear down a running import, so `onAppStop` skips it whenever the suppression flag is set, and the next real background does the work.
+- **No reconcile at process start.** It would be a no-op whenever the alias is already right, and actively harmful when it is not: at launch the process exists *because* the launcher fired an intent at the currently-enabled alias, so disabling it would re-create the ejection at cold start. The only gap left is a crash or low-memory kill while foregrounded, which leaves a stale icon until the next background repairs it.
+
+A failure to set the icon is logged nowhere and never blocks anything: the vault is already re-enrolled and a stale icon is cosmetic. Erase-everything returns the active face to the calculator, and the next background restores its identity.
+
+**Component state outlives app data (Android).** The enabled alias is PackageManager state, not app data, so clearing storage from Android Settings — or `adb shell pm clear` — leaves the launcher showing the old identity. This is not a leak of anything (the alias reveals a face, not a code) and it self-heals: a cleared install has no passcode, so the active face is the calculator default and the next background reconciles to it.
+
+**Copy changes.** The old identity-grade lines (`disguise_grade_native` / `disguise_grade_incoherent`) are retired, replaced by a per-card line naming the cover identity, and `disguise_identity_disclosure` is rewritten and now differs per platform — a deliberate exception to the identical-strings rule in §7, because the platforms genuinely do different things:
+
+Format arguments follow §7 as always — `%1$s` on Android, `%1$@` on iOS — regardless of how the rows below happen to print:
+
+| ID | Platform | English |
+|---|---|---|
+| `disguise_cover_identity` | Android | Appears as "%1$s" on your home screen |
+| `disguise_cover_identity` | iOS | Uses the %1$@ icon on your home screen |
+| `disguise_identity_disclosure` | Android | Your home screen icon and name change to match the disguise. The app's underlying identity cannot change, so the app-info screen still lists it as Calculator+, and some launchers move a renamed icon out of its place. |
+| `disguise_identity_disclosure` | iOS | Your home screen icon changes to match the disguise. The app's name stays "Calculator+" — iOS does not let an app rename itself — and iOS shows a brief system alert when the icon changes. |
+
+---
+
 ## 10. Statements superseded by this iteration
 
 **`docs/plans/disguise-skeleton-plan.md`**
+- **§2.1 in its entirety — "Launcher identity is static per install"** → reversed by §9a. Switching a face now changes the home-screen icon on both platforms, and the app name too on Android. What survives from §2.1 is only the genuinely permanent part: the bundle identifier and `applicationId` never change, and there is one store listing. The identity-credibility grading it introduced (*identity-native* / *plausible* / *incoherent*) is retired with it, along with the §2.1 disclosure copy, since each face now carries its own cover identity.
 - §1 "a believable, fully functional decoy app surface" and §3.2a "genuinely functional instance of the app it pretends to be" → a disguise is a *lock face*; for overt faces the function is to be a credible native lock screen (§2.2).
 - §2.3 flow order `PICK_DISGUISE → VERIFY_CURRENT → …` → `VERIFY_CURRENT → PICK → CAPTURE_NEW → CONFIRM_NEW` (§5); the explainer shows on the picker, after verification.
 - §3.1 / §3.2b / §4.3 "the token stream is `token`, `commit`, `clear`; the enum has three cases; a fourth requires amending this document" → amended: `removeLast` added (§1.2).

@@ -192,7 +192,7 @@ struct SortViewModelTests {
         let nuker = VaultNuker(modelContainer: ModelContainerFactory.inMemory(),
                                fileStore: PhotoFileStore(rootURL: root),
                                passcodeStore: passcodeStore,
-                               lockCoordinator: AppLockCoordinator(passcodeStore: passcodeStore),
+                               lockCoordinator: AppLockCoordinator(passcodeStore: passcodeStore, appIcons: AppIconManager(icons: FakeAlternateIcons())),
                                preferenceDefaults: defaults)
         await nuker.nuke()
 

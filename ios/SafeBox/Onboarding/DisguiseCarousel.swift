@@ -150,7 +150,7 @@ struct DisguiseCarousel: View {
                 .foregroundStyle(theme.caption)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(disguise.identityGrade.disclosure)
+            Text(VaultCopy.disguiseCoverIdentity(disguise.coverIdentityName))
                 .font(.system(size: 11))
                 .foregroundStyle(theme.caption)
                 .multilineTextAlignment(.center)

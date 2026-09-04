@@ -74,6 +74,21 @@ Run this whole section three times: once picking Calculator, once PIN pad, once 
 - Repeat, cancelling at each phase in turn: the **old** face and **old** code survive every time.
 - Background mid-flow at each phase: the flow is gone on return, the vault is locked, and the old code and face are intact.
 
+## I — Home-screen icon and name follow the face (Android: both)
+
+This is the riskiest part of the icon work, because a bad alias swap can make the app vanish from the launcher.
+
+- After setup on each face, check the app drawer: calculator face shows the calculator icon named **Calculator+**, PIN pad shows the notepad icon named **Notepad+**, pattern shows the gallery icon named **Gallery+**.
+- **The app must never disappear.** Complete a switch and immediately open the launcher: exactly one entry exists, with the new identity. Repeat the switch a few times in a row and confirm you never end up with zero entries or two.
+- **The app must not be killed, and must not be ejected.** Complete a switch and confirm the vault is still open and responsive afterwards, with no restart and **without being dropped onto the launcher**. `DONT_KILL_APP` keeps the process; what keeps the user in the app is that the alias is reconciled on background rather than at commit. If finishing setup or a switch bounces you to the home screen, the reconcile has moved back to commit time.
+- **The swap is deferred, deliberately.** Immediately after a switch commits, the launcher still shows the *old* identity — that is correct. Press Home, then check: the icon and name are now the new ones. Verify with `adb shell cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.LAUNCHER --brief`, which should list exactly one `com.calcplus.calculator/...` alias at every point.
+- **The photo picker must not trigger it.** Switch disguise, then start a photo import without leaving the app first. The picker round trip must not reconcile: you return into the same unlocked vault with the import intact. The swap happens on the next real background.
+- **Clearing storage does not reset the icon.** `adb shell pm clear` (or Clear storage in Android Settings) leaves the old alias enabled, because component state is not app data. Open the app, background it, and confirm it returns to Calculator+.
+- Put the app's icon on the home screen in a specific position, then switch faces. Note where the icon ends up — some launchers move a renamed entry to the end of the drawer or drop the home-screen shortcut. Whatever happens, it must be reflected honestly in the disclosure copy.
+- Settings → Apps still lists the app as **Calculator+** whatever face is active, because that label comes from the application element. Confirm the disclosure says so.
+- Erase everything: the identity returns to Calculator+ with the calculator icon.
+- Reboot the emulator or device after a switch: the identity persists.
+
 ## P — Change passcode still works
 
 - Settings → Change passcode with a non-calculator face active: the whole flow renders on the **active** face.

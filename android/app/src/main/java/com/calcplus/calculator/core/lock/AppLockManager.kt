@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * @param initialActiveDisguiseId the launch-read mirror value (decisions §3).
  *   Never the envelope: unwrapping it at process start would mean Keystore work
  *   in `Application.onCreate`. An unknown or null id resolves to the default.
+ * @param reconcileCoverIdentity brings the home-screen icon and name into
+ *   agreement with the enrolled face (§9a). Called ONLY from [onAppStop], and
+ *   never at a moment the user is looking at the app — see the note there.
+ *   Best-effort by contract: it must not throw and must not block.
  */
 class AppLockManager(
     private val passcodeRepository: PasscodeRepository,
@@ -26,6 +30,7 @@ class AppLockManager(
     private val elapsedRealtime: () -> Long,
     onboardingComplete: Boolean = true,
     initialActiveDisguiseId: String? = null,
+    private val reconcileCoverIdentity: (DisguiseProvider) -> Unit = {},
 ) {
     companion object {
         /** Hard cap for the picker suppression window (idea plan §2.5.1), ms, monotonic. */
@@ -111,7 +116,14 @@ class AppLockManager(
         if (_lockState.value == LockState.NeedsSetup) bumpEpoch()
     }
 
-    /** The switch flow committed a new face; the next lock shows it (§5). */
+    /**
+     * The switch flow committed a new face; the next lock shows it (§5). The
+     * caller invokes this only after the single atomic envelope write landed.
+     *
+     * The home-screen identity is deliberately NOT changed here — see
+     * [onAppStop]. It follows at the next background, which the user must pass
+     * through before they can see the home screen at all.
+     */
     fun setActiveDisguise(id: String) {
         val resolved = registry.resolve(id)
         if (_activeDisguise.value.id == resolved.id) return
@@ -132,6 +144,9 @@ class AppLockManager(
         _showOnboarding.value = true
         _pendingDisguiseId.value = registry.default.id
         _activeDisguise.value = registry.default
+        // The home screen follows at the next background, like every other
+        // identity change (§9a) — erase leaves the user inside the app, on
+        // first-run setup, and must not eject them to the launcher.
         bumpEpoch()
         suppressedStoppedAt = null
         systemUiInFlight = false
@@ -243,8 +258,28 @@ class AppLockManager(
         systemUiInFlight = false
     }
 
-    /** ProcessLifecycleOwner onStop — the app left the foreground. */
+    /**
+     * The activity's onStop — the app left the foreground.
+     *
+     * This is also the ONLY place the home-screen cover identity is applied
+     * (§9a). Disabling an `activity-alias` tears down the task rooted at it,
+     * even with `DONT_KILL_APP` keeping the process alive: applied at the
+     * moment of a setup or switch commit, the swap drops the user onto the
+     * launcher and — because backgrounding locks the vault — makes them
+     * re-enter the code they just set. So the identity is reconciled to the
+     * enrolled face here instead, where the user is already leaving and the
+     * vault is already locking, and a task teardown costs nothing.
+     *
+     * This loses nothing: the home screen is the only place the icon and name
+     * are visible, and reaching it means passing through this method first.
+     *
+     * The one exception is the suppressed photo-picker round trip. The user is
+     * coming straight back into this task with the vault still unlocked, so it
+     * is a foreground moment wearing a background's clothes, and tearing the
+     * task down there would lose the import they are in the middle of.
+     */
     fun onAppStop() {
+        if (!systemUiInFlight) reconcileCoverIdentity(_activeDisguise.value)
         when (_lockState.value) {
             LockState.NeedsSetup -> {
                 // Backgrounding mid-setup discards both buffers — fail closed.

@@ -49,7 +49,7 @@ import com.calcplus.calculator.core.disguise.DisguiseEvent
 import com.calcplus.calculator.core.disguise.DisguiseGuideContent
 import com.calcplus.calculator.core.disguise.DisguiseMode
 import com.calcplus.calculator.core.disguise.DisguiseProvider
-import com.calcplus.calculator.core.disguise.IdentityGrade
+import com.calcplus.calculator.core.disguise.CoverAliases
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
 
 /**
@@ -77,6 +77,10 @@ object CalculatorDisguise : DisguiseProvider {
     override val displayName: Int = R.string.calculator_display_name
     override val tagline: Int = R.string.calculator_tagline
     override val commitGesture: Int = R.string.calculator_commit_gesture
+
+    /** Cover identity (§9a): the shipped default — Calculator+, the primary icon. */
+    override val coverAlias: String = CoverAliases.CALCULATOR
+    override val coverName: Int = R.string.cover_name_calculator
 
     override val guide: DisguiseGuideContent = CalculatorGuide
 
@@ -124,7 +128,6 @@ object CalculatorDisguise : DisguiseProvider {
 
 /** Guide pages 3 and 4 for the calculator (copy renamed per decisions §7). */
 private object CalculatorGuide : DisguiseGuideContent {
-    override val identityGrade = IdentityGrade.NATIVE
     override val page3Title = R.string.calculator_guide_page3_title
     override val page3Body = R.string.calculator_guide_page3_body
     override val page3Try = R.string.calculator_guide_try

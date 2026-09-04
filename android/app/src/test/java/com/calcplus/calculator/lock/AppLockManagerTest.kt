@@ -274,6 +274,138 @@ class AppLockManagerTest {
         assertTrue(manager.surfaceEpoch.value > epochBefore)
     }
 
+    // Cover identities (§9a). Disabling an activity-alias tears down the task
+    // rooted at it even with DONT_KILL_APP, so the swap can only happen while
+    // the user is already leaving: it is reconciled on background, never at
+    // the moment of a commit.
+
+    private fun coverIdentityManager(
+        worn: MutableList<String>,
+        hasPasscode: Boolean,
+        faceId: String? = null,
+    ) = AppLockManager(
+        FakePasscodeRepository(
+            stored = if (hasPasscode) code else null,
+            storedFaceId = faceId,
+        ),
+        testRegistry(),
+        hasPasscode = hasPasscode,
+        elapsedRealtime = { 0L },
+        initialActiveDisguiseId = faceId,
+        reconcileCoverIdentity = { worn += it.id },
+    )
+
+    /** The regression: setup used to eject the user to the launcher. */
+    @Test
+    fun firstRunSetupDoesNotTouchTheHomeScreen() = runTest {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = false)
+        manager.selectPendingDisguise("pattern")
+        val pattern = listOf("N0", "N1", "N2", "N5")
+
+        manager.commit(pattern, overflowed = false)
+        manager.commit(pattern, overflowed = false)
+
+        assertEquals(LockState.Unlocked, manager.lockState.value)
+        assertEquals("pattern", manager.activeDisguise.value.id)
+        assertTrue("committing must never tear down the task", worn.isEmpty())
+    }
+
+    @Test
+    fun theChosenIdentityIsWornOnTheNextBackground() = runTest {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = false)
+        manager.selectPendingDisguise("pattern")
+        val pattern = listOf("N0", "N1", "N2", "N5")
+        manager.commit(pattern, overflowed = false)
+        manager.commit(pattern, overflowed = false)
+
+        manager.onAppStop()
+
+        assertEquals(listOf("pattern"), worn)
+    }
+
+    @Test
+    fun switchingWearsTheNewIdentityOnTheNextBackgroundOnly() {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = true, faceId = "calculator")
+
+        manager.setActiveDisguise("numpad")
+        assertTrue("the switch itself must not tear down the task", worn.isEmpty())
+
+        manager.onAppStop()
+        assertEquals(listOf("numpad"), worn)
+    }
+
+    /**
+     * A face that never got enrolled must never reach the home screen: the
+     * reconcile reads the ACTIVE face, so an abandoned switch leaves the icon
+     * exactly where the envelope left it.
+     */
+    @Test
+    fun anAbandonedSwitchNeverReachesTheHomeScreen() {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = true, faceId = "calculator")
+
+        // The picker got as far as CAPTURE_NEW on the pattern and was cancelled,
+        // so setActiveDisguise was never called. Then the user backgrounds.
+        manager.onAppStop()
+
+        assertEquals(listOf("calculator"), worn)
+    }
+
+    @Test
+    fun eraseRestoresTheCalculatorIdentityOnTheNextBackground() {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = true, faceId = "pattern")
+
+        manager.reset()
+        assertEquals("calculator", manager.activeDisguise.value.id)
+        // Erase leaves the user inside the app on first-run setup — ejecting
+        // them to the launcher there would be the same defect again.
+        assertTrue(worn.isEmpty())
+
+        manager.onAppStop()
+        assertEquals(listOf("calculator"), worn)
+    }
+
+    /**
+     * The photo picker is a foreground moment wearing a background's clothes:
+     * the user comes straight back into this task with the vault still
+     * unlocked, and a teardown would lose the import in progress.
+     */
+    @Test
+    fun theSuppressedPickerRoundTripDoesNotTouchTheHomeScreen() = runTest {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = true, faceId = "calculator")
+        manager.commit(code, overflowed = false)
+        manager.setActiveDisguise("numpad")
+
+        manager.beginExternalActivity()
+        manager.onAppStop()
+        assertTrue("a picker round trip must not tear down the task", worn.isEmpty())
+
+        // ...and a real background right after still reconciles.
+        manager.onAppStart()
+        manager.endExternalActivity()
+        manager.onAppStop()
+        assertEquals(listOf("numpad"), worn)
+    }
+
+    /** Reconciling is idempotent, so a background with nothing to do is free. */
+    @Test
+    fun repeatedBackgroundsJustRepeatTheSameTarget() {
+        val worn = mutableListOf<String>()
+        val manager = coverIdentityManager(worn, hasPasscode = true, faceId = "numpad")
+
+        manager.onAppStop()
+        manager.onAppStop()
+
+        // The manager asks for the same identity every time; AppIconManager is
+        // what turns the second ask into a no-op.
+        assertEquals(listOf("numpad", "numpad"), worn)
+    }
+
     // Re-lock model.
 
     @Test

@@ -81,7 +81,14 @@ class VaultStringsTest {
      */
     @Test
     fun retiredPageOneStringsAreDeleted() {
-        listOf("onboarding_page1_title", "onboarding_page1_body").forEach { name ->
+        listOf(
+            "onboarding_page1_title",
+            "onboarding_page1_body",
+            // Retired by §9a along with the identity-grade concept: the icon
+            // and name now follow the face, so no face "doesn't match".
+            "disguise_grade_native",
+            "disguise_grade_incoherent",
+        ).forEach { name ->
             val id = context.resources.getIdentifier(name, "string", context.packageName)
             assertEquals("$name must no longer exist", 0, id)
         }
@@ -99,16 +106,41 @@ class VaultStringsTest {
             context.getString(R.string.onboarding_disguise_revisit_hint),
         )
         assertEquals("Current", context.getString(R.string.disguise_current_badge))
-        assertEquals(
-            "Matches the app's name and icon",
-            context.getString(R.string.disguise_grade_native),
-        )
-        assertEquals(
-            "Doesn't match the app's name and icon",
-            context.getString(R.string.disguise_grade_incoherent),
-        )
         assertEquals("Change disguise", context.getString(R.string.settings_change_disguise_title))
         assertEquals("Use this disguise", context.getString(R.string.disguise_pick_action))
         assertEquals("Not usable with a screen reader", context.getString(R.string.pattern_a11y_note))
+    }
+
+    /**
+     * Cover identities (§9a). These two strings are the deliberate, documented
+     * exception to the identical-copy rule in §7 — Android changes both icon
+     * and name, iOS only the icon, so the wording genuinely differs.
+     */
+    @Test
+    fun coverIdentityCopyIsTheAndroidWording() {
+        assertEquals(
+            "Appears as \"Notepad+\" on your home screen",
+            context.getString(R.string.disguise_cover_identity, "Notepad+"),
+        )
+        assertEquals(
+            "Your home screen icon and name change to match the disguise. The app's " +
+                "underlying identity cannot change, so the app-info screen still lists it as " +
+                "Calculator+, and some launchers move a renamed icon out of its place.",
+            context.getString(R.string.disguise_identity_disclosure),
+        )
+    }
+
+    /** The launcher labels, which are also the argument above. */
+    @Test
+    fun coverNamesAreTheThreeIdentities() {
+        assertEquals("Calculator+", context.getString(R.string.cover_name_calculator))
+        assertEquals("Notepad+", context.getString(R.string.cover_name_notepad))
+        assertEquals("Gallery+", context.getString(R.string.cover_name_gallery))
+        // The primary identity and the app label are the same words, and must
+        // stay that way: the calculator alias is the one the manifest ships.
+        assertEquals(
+            context.getString(R.string.app_name),
+            context.getString(R.string.cover_name_calculator),
+        )
     }
 }

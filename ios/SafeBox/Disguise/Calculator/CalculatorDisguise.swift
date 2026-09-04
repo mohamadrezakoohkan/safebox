@@ -5,6 +5,7 @@ import SwiftUI
 /// exact strings, reached through the semantic seam instead of directly.
 enum CalculatorCopy {
     static let displayName = localizedCopy("calculator_display_name", "Calculator")
+    static let coverName = localizedCopy("cover_name_calculator", "Calculator+")
     static let tagline = localizedCopy("calculator_tagline", "A fully working calculator. A wrong code just calculates — no error, no hint.")
     static let commitGesture = localizedCopy("calculator_commit_gesture", "the = key")
     static let guidePage3Title = localizedCopy("calculator_guide_page3_title", "Your code is a key sequence")
@@ -47,10 +48,13 @@ struct CalculatorDisguise: DisguiseProviding {
         tokens: CalcKey.allCases.filter(\.isPasscodeKey).map(\.rawValue)
     )
 
+    /// The shipped identity: the primary icon, so `alternateIconName` is nil.
+    var coverIdentityName: String { CalculatorCopy.coverName }
+    var alternateIconName: String? { nil }
+
     var displayName: String { CalculatorCopy.displayName }
     var tagline: String { CalculatorCopy.tagline }
     var commitGesture: String { CalculatorCopy.commitGesture }
-    var identityGrade: DisguiseIdentityGrade { .native }
     var page3Title: String { CalculatorCopy.guidePage3Title }
     var page3Body: String { CalculatorCopy.guidePage3Body }
     var page3Try: String { CalculatorCopy.guideTry }

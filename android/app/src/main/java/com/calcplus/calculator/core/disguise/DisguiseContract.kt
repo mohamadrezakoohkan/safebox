@@ -105,16 +105,15 @@ data class CaptionState(
     val isError: Boolean get() = primary == CaptionKind.WRONG_CODE
 }
 
-/** How well the face matches the app's shipped identity (§1.4, §6). */
-enum class IdentityGrade { NATIVE, PLAUSIBLE, INCOHERENT }
-
 /**
  * The guide/picker content slot (§1.4). The card thumbnail is NOT part of this
  * slot — it is [DisguiseProvider.CoverFace] rendered at scale (§6).
+ *
+ * `identityGrade` was retired in §9a: the home-screen icon and name now follow
+ * the face, so there is no longer a face that "doesn't match the app's icon".
+ * Its place on the card is taken by [DisguiseProvider.coverName].
  */
 interface DisguiseGuideContent {
-    val identityGrade: IdentityGrade
-
     @get:StringRes val page3Title: Int
 
     @get:StringRes val page3Body: Int
@@ -161,6 +160,16 @@ interface DisguiseProvider {
     @get:StringRes val tagline: Int
 
     @get:StringRes val commitGesture: Int
+
+    /**
+     * Cover identity (§9a): the fully-qualified `activity-alias` this face
+     * wears on the home screen. Exactly one alias is enabled at a time and
+     * [AppIconManager] does the swapping; the face only names its own.
+     */
+    val coverAlias: String
+
+    /** The name that alias shows in the launcher ("Calculator+", "Notepad+"…). */
+    @get:StringRes val coverName: Int
 
     val guide: DisguiseGuideContent
 

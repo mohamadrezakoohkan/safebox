@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "Notepad+" cover identity (iteration-3-decisions §9a), worn by the PIN
+  pad face. Same background colour and monochrome treatment as the primary
+  icon so the three identities are visibly one family of artwork.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_notepad_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_notepad_foreground" />
+</adaptive-icon>

@@ -177,9 +177,10 @@ enum VaultCopy {
 
     // MARK: - Disguise carousel, picker and switch flow (iteration 3, §7)
 
-    static let disguiseGradeNative = localizedCopy("disguise_grade_native", "Matches the app's name and icon")
-    static let disguiseGradeIncoherent = localizedCopy("disguise_grade_incoherent", "Doesn't match the app's name and icon")
-    static let disguiseIdentityDisclosure = localizedCopy("disguise_identity_disclosure", "On your home screen the app is always called Calculator+ and keeps its calculator icon. Only the screen shown while locked changes — so a Calculator+ that opens to a PIN pad or a pattern is itself a hint that something is hidden.")
+    /// §9a, iOS wording. Deliberately differs from Android's, which also
+    /// renames the app — an accepted exception to §7's identical-strings rule,
+    /// because the platforms genuinely do different things.
+    static let disguiseIdentityDisclosure = localizedCopy("disguise_identity_disclosure", "Your home screen icon changes to match the disguise. The app's name stays \"Calculator+\" — iOS does not let an app rename itself — and iOS shows a brief system alert when the icon changes.")
     static let disguiseCurrentBadge = localizedCopy("disguise_current_badge", "Current")
     static let onboardingDisguiseTitle = localizedCopy("onboarding_disguise_title", "Pick a disguise")
     static let onboardingDisguiseBody = localizedCopy("onboarding_disguise_body", "Anyone who opens Calculator+ sees only this screen. You can change it later in Settings.")
@@ -188,6 +189,13 @@ enum VaultCopy {
     static let disguisePickAction = localizedCopy("disguise_pick_action", "Use this disguise")
     static let disguiseSwitchSuccessTitle = localizedCopy("disguise_switch_success_title", "Disguise changed")
     static let disguiseSwitchSuccessBody = localizedCopy("disguise_switch_success_body", "Your new code works from now on. There is no way to recover it — if you forget it, your vault contents cannot be retrieved.")
+
+    /// The per-card cover-identity line (§9a), parameterized by the face's
+    /// cover identity name. iOS wording: the icon only — `setAlternateIconName`
+    /// cannot rename an app.
+    static func disguiseCoverIdentity(_ coverName: String) -> String {
+        localizedCopy("disguise_cover_identity", "Uses the \(coverName) icon on your home screen")
+    }
 
     /// The picker explainer, parameterized by the CURRENT face's display name
     /// and commit gesture.

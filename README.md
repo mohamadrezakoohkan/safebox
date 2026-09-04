@@ -8,13 +8,13 @@ Everything is local and offline — no accounts, no backend, no analytics.
 
 The face is chosen during onboarding and can be changed later in Settings, which re-enters the current code and then enrols a new one on the new face (the passcode hash is bound to the face's own key alphabet, so a switch always means a new code).
 
-| Face | Entry | Wrong code |
-| --- | --- | --- |
-| Calculator | Type keys, press `=` | Silent — it just calculates |
-| PIN pad | Type digits, tap `✓` | Shakes and clears |
-| Pattern | Connect 4–9 dots, lift your finger | Shakes and clears |
+| Face | Appears as | Entry | Wrong code |
+| --- | --- | --- | --- |
+| Calculator | Calculator+ | Type keys, press `=` | Silent — it just calculates |
+| PIN pad | Notepad+ | Type digits, tap `✓` | Shakes and clears |
+| Pattern | Gallery+ | Connect 4–9 dots, lift your finger | Shakes and clears |
 
-The app is always called "Calculator+" on the home screen and always keeps its calculator icon; only the locked screen changes. A Calculator+ that opens to a PIN pad is therefore itself a hint that something is hidden — a trade-off the picker states plainly.
+The home-screen icon follows the face, so the two agree: a locked notes app and a locked gallery are ordinary things to find on a phone, and a PIN pad or a pattern is exactly how they lock. Android changes the app's name to match as well; iOS changes only the icon, because it does not let an app rename itself, and it shows a system alert when the icon changes. The picker states both plainly. What can never change is the underlying identifier, so a phone's app-info screen still lists the app as Calculator+.
 
 ## Status
 

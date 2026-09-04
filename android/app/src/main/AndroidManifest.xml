@@ -40,16 +40,72 @@
         android:theme="@style/Theme.CalcPlus"
         android:supportsRtl="true">
 
+        <!--
+          The activity itself is NO LONGER a launcher entry (decisions §9a).
+          The home-screen icon and name follow the enrolled lock face, and an
+          activity cannot change its own icon at runtime — an activity-alias
+          can be enabled or disabled. So the three cover identities below are
+          the launcher entries, all targeting this one activity.
+        -->
         <activity
             android:name=".MainActivity"
-            android:exported="true"
+            android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.CalcPlus">
+            android:theme="@style/Theme.CalcPlus" />
+
+        <!--
+          Cover identities (decisions §9a). EXACTLY ONE is enabled at a time;
+          AppIconManager enables the incoming one BEFORE disabling the others,
+          so the app can never vanish from the launcher, and passes
+          DONT_KILL_APP so the process survives the swap.
+
+          Calculator+ is the shipped default, so it is the only alias enabled
+          in the manifest — a fresh install, and any install whose component
+          settings were reset, lands on the calculator identity.
+
+          Accepted tells, disclosed in-app via disguise_identity_disclosure:
+          the app-info screen still reads "Calculator+" (that label comes from
+          the <application> element, which cannot change), and some launchers
+          move a renamed icon out of its home-screen position.
+        -->
+        <activity-alias
+            android:name=".CalculatorAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/cover_name_calculator">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".NotepadAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_notepad"
+            android:label="@string/cover_name_notepad">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".GalleryAlias"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_gallery"
+            android:label="@string/cover_name_gallery">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

@@ -4,6 +4,7 @@ import SwiftUI
 /// "passcode", "vault", "unlock" or "SafeBox".
 enum PatternCopy {
     static let displayName = localizedCopy("pattern_display_name", "Pattern")
+    static let coverName = localizedCopy("cover_name_gallery", "Gallery+")
     static let tagline = localizedCopy("pattern_tagline", "Connect the dots in one stroke. A wrong pattern shakes and clears, like an Android lock.")
     static let commitGesture = localizedCopy("pattern_commit_gesture", "a finger lift")
     static let a11yNote = localizedCopy("pattern_a11y_note", "Not usable with a screen reader")
@@ -64,10 +65,14 @@ struct PatternDisguise: DisguiseProviding {
         tokens: PatternGeometry.tokens
     )
 
+    /// A locked gallery is as ordinary as a locked notes app, and a pattern is
+    /// exactly how one locks (§9a).
+    var coverIdentityName: String { PatternCopy.coverName }
+    var alternateIconName: String? { "AppIconGallery" }
+
     var displayName: String { PatternCopy.displayName }
     var tagline: String { PatternCopy.tagline }
     var commitGesture: String { PatternCopy.commitGesture }
-    var identityGrade: DisguiseIdentityGrade { .incoherent }
     var page3Title: String { PatternCopy.guidePage3Title }
     var page3Body: String { PatternCopy.guidePage3Body }
     var page3Try: String { PatternCopy.guideTry }

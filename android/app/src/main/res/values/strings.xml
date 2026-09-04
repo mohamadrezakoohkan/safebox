@@ -53,10 +53,22 @@
     <string name="onboarding_disguise_title">Pick a disguise</string>
     <string name="onboarding_disguise_body">Anyone who opens Calculator+ sees only this screen. You can change it later in Settings.</string>
     <string name="onboarding_disguise_revisit_hint">This is your current disguise. You can change it in Settings → Change disguise.</string>
-    <string name="disguise_identity_disclosure">On your home screen the app is always called Calculator+ and keeps its calculator icon. Only the screen shown while locked changes — so a Calculator+ that opens to a PIN pad or a pattern is itself a hint that something is hidden.</string>
-    <string name="disguise_grade_native">Matches the app\'s name and icon</string>
-    <string name="disguise_grade_incoherent">Doesn\'t match the app\'s name and icon</string>
+    <!--
+      Cover identities (§9a). These two strings deliberately DIFFER from iOS —
+      an explicit exception to the identical-copy rule in §7, because Android
+      changes both icon and name while iOS can only change the icon.
+    -->
+    <string name="disguise_identity_disclosure">Your home screen icon and name change to match the disguise. The app\'s underlying identity cannot change, so the app-info screen still lists it as Calculator+, and some launchers move a renamed icon out of its place.</string>
+    <string name="disguise_cover_identity">Appears as \"%1$s\" on your home screen</string>
     <string name="disguise_current_badge">Current</string>
+
+    <!--
+      The launcher labels themselves, one per activity-alias in the manifest,
+      and the argument to disguise_cover_identity on each carousel card.
+    -->
+    <string name="cover_name_calculator">Calculator+</string>
+    <string name="cover_name_notepad">Notepad+</string>
+    <string name="cover_name_gallery">Gallery+</string>
 
     <!-- Calculator face: identity + guide (copy verbatim from onboarding_page3/4_*). -->
     <string name="calculator_display_name">Calculator</string>

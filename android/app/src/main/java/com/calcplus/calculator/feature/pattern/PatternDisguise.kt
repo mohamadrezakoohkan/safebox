@@ -38,7 +38,7 @@ import com.calcplus.calculator.core.disguise.DisguiseEvent
 import com.calcplus.calculator.core.disguise.DisguiseGuideContent
 import com.calcplus.calculator.core.disguise.DisguiseMode
 import com.calcplus.calculator.core.disguise.DisguiseProvider
-import com.calcplus.calculator.core.disguise.IdentityGrade
+import com.calcplus.calculator.core.disguise.CoverAliases
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
 
 /**
@@ -64,6 +64,13 @@ object PatternDisguise : DisguiseProvider {
     override val displayName: Int = R.string.pattern_display_name
     override val tagline: Int = R.string.pattern_tagline
     override val commitGesture: Int = R.string.pattern_commit_gesture
+
+    /**
+     * Cover identity (§9a): Gallery+. A locked photo gallery is ordinary, and
+     * a pattern is exactly how an Android app of that kind locks.
+     */
+    override val coverAlias: String = CoverAliases.GALLERY
+    override val coverName: Int = R.string.cover_name_gallery
 
     override val guide: DisguiseGuideContent = PatternGuide
 
@@ -107,7 +114,6 @@ object PatternDisguise : DisguiseProvider {
 }
 
 private object PatternGuide : DisguiseGuideContent {
-    override val identityGrade = IdentityGrade.INCOHERENT
     override val page3Title = R.string.pattern_guide_page3_title
     override val page3Body = R.string.pattern_guide_page3_body
     override val page3Try = R.string.pattern_guide_try

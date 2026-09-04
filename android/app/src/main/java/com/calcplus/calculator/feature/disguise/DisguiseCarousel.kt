@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.sp
 import com.calcplus.calculator.R
 import com.calcplus.calculator.core.disguise.DisguiseProvider
 import com.calcplus.calculator.core.disguise.DisguiseRegistry
-import com.calcplus.calculator.core.disguise.IdentityGrade
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -224,14 +223,11 @@ private fun DisguiseCard(
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+        // Cover identity (§9a), replacing the retired identity-grade line: the
+        // icon and name follow the face, so the card names what the home
+        // screen will say rather than how badly the two disagree.
         Text(
-            stringResource(
-                when (face.guide.identityGrade) {
-                    IdentityGrade.NATIVE -> R.string.disguise_grade_native
-                    IdentityGrade.PLAUSIBLE, IdentityGrade.INCOHERENT ->
-                        R.string.disguise_grade_incoherent
-                }
-            ),
+            stringResource(R.string.disguise_cover_identity, stringResource(face.coverName)),
             color = theme.caption,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,

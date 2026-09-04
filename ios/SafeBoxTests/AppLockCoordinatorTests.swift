@@ -8,18 +8,25 @@ final class FakeClock: @unchecked Sendable {
 
 @MainActor
 struct AppLockCoordinatorTests {
-    private func makeSetupCoordinator() -> (AppLockCoordinator, InMemoryPasscodeStore) {
+    /// Every coordinator here drives a fake icon controller: a real one would
+    /// reach `UIApplication.shared` and move the test host's home-screen icon.
+    private func makeSetupCoordinator(icons: FakeAlternateIcons = FakeAlternateIcons())
+    -> (AppLockCoordinator, InMemoryPasscodeStore) {
         let store = InMemoryPasscodeStore()
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store,
+                                             appIcons: AppIconManager(icons: icons))
         return (coordinator, store)
     }
 
     private func makeLockedCoordinator(clock: FakeClock = FakeClock(),
-                                       disguiseId: String = "calculator")
+                                       disguiseId: String = "calculator",
+                                       icons: FakeAlternateIcons = FakeAlternateIcons())
     async -> (AppLockCoordinator, SpyPasscodeStore) {
         let store = SpyPasscodeStore()
         await store.seed(["D1", "D2", "ADD", "D3", "D4"], activeDisguiseId: disguiseId)
-        let coordinator = AppLockCoordinator(passcodeStore: store, uptime: { clock.now })
+        let coordinator = AppLockCoordinator(passcodeStore: store,
+                                             appIcons: AppIconManager(icons: icons),
+                                             uptime: { clock.now })
         return (coordinator, store)
     }
 
@@ -167,7 +174,7 @@ struct AppLockCoordinatorTests {
 
     @Test func captureModesNeverPulse() async {
         let store = InMemoryPasscodeStore()
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()))
         coordinator.pendingDisguiseId = "numpad" // overt
         await coordinator.commit(tokens: ["D1"], overflowed: false)             // too short
         await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: true) // too long
@@ -187,7 +194,7 @@ struct AppLockCoordinatorTests {
     @Test func anUnknownEnrolledFaceFallsBackToTheCalculator() async {
         let store = SpyPasscodeStore()
         await store.seed(["D1", "D2", "D3", "D4"], activeDisguiseId: "tip-calculator")
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()))
         #expect(coordinator.activeDisguise.id == "calculator")
         #expect(coordinator.surfaceMode == .disguise)
     }
@@ -226,7 +233,7 @@ struct AppLockCoordinatorTests {
 
     @Test func setupStoresTheChosenFacesAlphabetAndId() async {
         let store = InMemoryPasscodeStore()
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()))
         coordinator.completeOnboarding(selectedDisguiseId: "pattern")
         await coordinator.commit(tokens: ["N0", "N1", "N2", "N5"], overflowed: false)
         await coordinator.commit(tokens: ["N0", "N1", "N2", "N5"], overflowed: false)
@@ -246,11 +253,65 @@ struct AppLockCoordinatorTests {
         #expect(coordinator.disguiseEpoch > epochBefore)
     }
 
+    // MARK: - Cover identities (§9a)
+
+    @Test func finishingSetupAppliesTheChosenFacesIcon() async {
+        let icons = FakeAlternateIcons()
+        let (coordinator, _) = makeSetupCoordinator(icons: icons)
+        coordinator.completeOnboarding(selectedDisguiseId: "pattern")
+        await coordinator.commit(tokens: ["N0", "N1", "N2", "N3"], overflowed: false)
+        #expect(icons.setCalls.isEmpty) // still only the confirm step
+        await coordinator.commit(tokens: ["N0", "N1", "N2", "N3"], overflowed: false)
+        #expect(icons.setCalls == ["AppIconGallery"])
+    }
+
+    /// §9a: never before the envelope write. A failed write must leave the icon
+    /// agreeing with the code that is still enrolled.
+    @Test func aFailedFirstWriteLeavesTheIconAlone() async {
+        let icons = FakeAlternateIcons()
+        let store = InMemoryPasscodeStore()
+        store.failNextSet = true
+        let coordinator = AppLockCoordinator(passcodeStore: store,
+                                             appIcons: AppIconManager(icons: icons))
+        coordinator.completeOnboarding(selectedDisguiseId: "numpad")
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(icons.setCalls.isEmpty)
+    }
+
+    @Test func aSwitchCommitMovesTheIconToTheNewFace() async {
+        let icons = FakeAlternateIcons()
+        let (coordinator, store) = await makeLockedCoordinator(disguiseId: "calculator", icons: icons)
+        await store.seed(["D1", "D2", "D3", "D4"],
+                         alphabet: NumpadDisguise().alphabet, activeDisguiseId: "numpad")
+        coordinator.reloadActiveDisguise()
+        #expect(icons.setCalls == ["AppIconNotepad"])
+    }
+
+    @Test func eraseEverythingRestoresTheCalculatorIcon() async {
+        let icons = FakeAlternateIcons(current: "AppIconNotepad")
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "numpad", icons: icons)
+        coordinator.reset()
+        #expect(icons.setCalls == [String?.none])
+        #expect(coordinator.activeDisguise.id == "calculator")
+    }
+
+    /// Locking, backgrounding and a plain unlock must never touch the icon —
+    /// each set pops iOS's system alert.
+    @Test func theOrdinaryLockCycleNeverTouchesTheIcon() async {
+        let icons = FakeAlternateIcons(current: "AppIconGallery")
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "pattern", icons: icons)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        coordinator.sceneDidEnterBackground()
+        coordinator.sceneDidBecomeActive()
+        #expect(icons.setCalls.isEmpty)
+    }
+
     // MARK: - Setup-complete hook (§4)
 
     @Test func theSetupHookFiresOnlyWithTheFirstEnvelope() async {
         let store = InMemoryPasscodeStore()
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()))
         var completions = 0
         coordinator.onSetupComplete = { completions += 1 }
 
@@ -266,7 +327,7 @@ struct AppLockCoordinatorTests {
     @Test func aFailedFirstWriteDoesNotFireTheSetupHook() async {
         let store = InMemoryPasscodeStore()
         store.failNextSet = true
-        let coordinator = AppLockCoordinator(passcodeStore: store)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()))
         var completions = 0
         coordinator.onSetupComplete = { completions += 1 }
         await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
@@ -340,7 +401,7 @@ struct AppLockCoordinatorTests {
 
     @Test func freshInstallShowsOnboardingUntilCompleted() {
         let store = InMemoryPasscodeStore()
-        let coordinator = AppLockCoordinator(passcodeStore: store, onboardingComplete: false)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()), onboardingComplete: false)
         #expect(coordinator.showOnboarding)
         coordinator.completeOnboarding()
         #expect(!coordinator.showOnboarding)
@@ -351,7 +412,7 @@ struct AppLockCoordinatorTests {
         // Even with the flag unset (upgrade path), an existing vault means no explainer.
         let store = SpyPasscodeStore()
         await store.seed(["D1", "D2", "ADD", "D3", "D4"])
-        let coordinator = AppLockCoordinator(passcodeStore: store, onboardingComplete: false)
+        let coordinator = AppLockCoordinator(passcodeStore: store, appIcons: AppIconManager(icons: FakeAlternateIcons()), onboardingComplete: false)
         #expect(!coordinator.showOnboarding)
     }
 

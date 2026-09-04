@@ -45,7 +45,7 @@ import com.calcplus.calculator.core.disguise.DisguiseEvent
 import com.calcplus.calculator.core.disguise.DisguiseGuideContent
 import com.calcplus.calculator.core.disguise.DisguiseMode
 import com.calcplus.calculator.core.disguise.DisguiseProvider
-import com.calcplus.calculator.core.disguise.IdentityGrade
+import com.calcplus.calculator.core.disguise.CoverAliases
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
 
 /**
@@ -71,6 +71,14 @@ object NumpadDisguise : DisguiseProvider {
     override val displayName: Int = R.string.numpad_display_name
     override val tagline: Int = R.string.numpad_tagline
     override val commitGesture: Int = R.string.numpad_commit_gesture
+
+    /**
+     * Cover identity (§9a): Notepad+. The pairing is the point — a locked
+     * notes app is an utterly ordinary thing to find on a phone, and a PIN pad
+     * is exactly how one locks.
+     */
+    override val coverAlias: String = CoverAliases.NOTEPAD
+    override val coverName: Int = R.string.cover_name_notepad
 
     override val guide: DisguiseGuideContent = NumpadGuide
 
@@ -113,7 +121,6 @@ object NumpadDisguise : DisguiseProvider {
 }
 
 private object NumpadGuide : DisguiseGuideContent {
-    override val identityGrade = IdentityGrade.INCOHERENT
     override val page3Title = R.string.numpad_guide_page3_title
     override val page3Body = R.string.numpad_guide_page3_body
     override val page3Try = R.string.numpad_guide_try

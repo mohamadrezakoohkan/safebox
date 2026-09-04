@@ -39,6 +39,12 @@ struct DisguiseStringsTests {
         #expect(catalog("onboarding_page1_body") == missing)
     }
 
+    /// §9a retires the identity-grade concept along with its two strings.
+    @Test func theIdentityGradeKeysAreRetired() {
+        #expect(catalog("disguise_grade_native") == missing)
+        #expect(catalog("disguise_grade_incoherent") == missing)
+    }
+
     // MARK: - Survivors
 
     @Test func theSharedGuideKeysSurvived() {
@@ -60,8 +66,6 @@ struct DisguiseStringsTests {
         #expect(catalog("numpad_commit_gesture") == "the ✓ key")
         #expect(catalog("pattern_commit_gesture") == "a finger lift")
         #expect(catalog("pattern_a11y_note") == "Not usable with a screen reader")
-        #expect(catalog("disguise_grade_native") == "Matches the app's name and icon")
-        #expect(catalog("disguise_grade_incoherent") == "Doesn't match the app's name and icon")
         #expect(catalog("disguise_current_badge") == "Current")
         for key in ["calculator_tagline", "numpad_tagline", "pattern_tagline",
                     "disguise_identity_disclosure"] {
@@ -95,6 +99,27 @@ struct DisguiseStringsTests {
         #expect(catalog("onboarding_disguise_title") == "Pick a disguise")
         #expect(catalog("onboarding_disguise_body") != missing)
         #expect(catalog("onboarding_disguise_revisit_hint") != missing)
+    }
+
+    // MARK: - Cover identities (§9a)
+
+    @Test func theCoverIdentityNamesResolve() {
+        #expect(catalog("cover_name_calculator") == "Calculator+")
+        #expect(catalog("cover_name_notepad") == "Notepad+")
+        #expect(catalog("cover_name_gallery") == "Gallery+")
+    }
+
+    /// The iOS wording — icon only, no rename. §9a licenses this string and
+    /// `disguise_identity_disclosure` to differ from Android's.
+    @Test func theCoverIdentityLineTakesTheCoverName() {
+        #expect(catalog("disguise_cover_identity") == "Uses the %1$@ icon on your home screen")
+        #expect(VaultCopy.disguiseCoverIdentity("Notepad+")
+                == "Uses the Notepad+ icon on your home screen")
+    }
+
+    @Test func theDisclosureIsTheIOSWording() {
+        #expect(catalog("disguise_identity_disclosure")
+                == "Your home screen icon changes to match the disguise. The app's name stays \"Calculator+\" — iOS does not let an app rename itself — and iOS shows a brief system alert when the icon changes.")
     }
 
     @Test func theExplainerTakesTwoStringArguments() {

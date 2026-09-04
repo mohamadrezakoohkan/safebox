@@ -70,6 +70,15 @@ Run this whole section three times: once picking Calculator, once PIN pad, once 
 - Repeat the flow but cancel at each phase in turn (verify, pick, new code, confirm). Each time: lock the app and confirm the **old** face and **old** code still work.
 - Background the app mid-flow at each phase: the flow is gone on return, the vault is locked, and the old code and face are intact.
 
+## I — Home-screen icon follows the face (iOS: icon only)
+
+- After setup on each face, background the app and look at the home screen: the icon is the calculator for the calculator face, the notepad for the PIN pad, the gallery for the pattern. **The name stays "Calculator+" in all three cases** — that is the documented iOS limit, not a bug.
+- Completing a disguise switch shows the iOS system alert confirming the icon changed. Dismiss it; the new icon is on the home screen.
+- Switch to a face and then switch back: each change shows the alert exactly **once**. Re-entering Settings, or completing a plain change-passcode, must **not** show it — that would mean the no-op guard is missing.
+- Erase everything: the icon returns to the calculator.
+- Force-quit and relaunch after a switch: the icon stays the new one (it is OS state, not app state).
+- Check the icon in Spotlight search results and in Settings → Calculator+: both should show the current icon, with the name still Calculator+.
+
 ## P — Change passcode still works
 
 - Settings → Change passcode with a non-calculator face active: the whole flow renders on the **active** face, not the calculator.

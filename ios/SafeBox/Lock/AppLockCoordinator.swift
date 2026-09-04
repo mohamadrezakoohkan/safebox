@@ -45,6 +45,10 @@ final class AppLockCoordinator {
 
     let registry: DisguiseRegistry
     private let passcodeStore: any PasscodeStore
+    /// Cover identities (§9a). Only ever driven from the three points below —
+    /// never from `lock()`, a re-lock, or launch: the icon is already right,
+    /// and a redundant set would pop iOS's system alert for nothing.
+    private let appIcons: AppIconManager
     private let uptime: @Sendable () -> TimeInterval
     /// Invoked on every transition INTO .locked (tmp cleanup etc.).
     var onLock: (() -> Void)?
@@ -55,10 +59,12 @@ final class AppLockCoordinator {
 
     init(passcodeStore: any PasscodeStore,
          registry: DisguiseRegistry = DisguiseRegistry(),
+         appIcons: AppIconManager = AppIconManager(),
          uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          onboardingComplete: Bool = true) {
         self.passcodeStore = passcodeStore
         self.registry = registry
+        self.appIcons = appIcons
         self.uptime = uptime
         activeDisguise = registry.resolve(id: passcodeStore.activeDisguiseId)
         if passcodeStore.hasPasscode {
@@ -98,8 +104,13 @@ final class AppLockCoordinator {
     }
 
     /// Re-reads the enrolled face after a switch and recreates the surface.
+    /// Reached only from the switch flow's success path, so the envelope write
+    /// has already landed — which is exactly when the cover identity may move
+    /// (§9a: never before, so a failed write cannot leave the icon disagreeing
+    /// with the code).
     func reloadActiveDisguise() {
         activeDisguise = registry.resolve(id: passcodeStore.activeDisguiseId)
+        appIcons.apply(activeDisguise)
         disguiseEpoch += 1
         failedAttemptCount = 0
     }
@@ -123,6 +134,8 @@ final class AppLockCoordinator {
         showOnboarding = true
         pendingDisguiseId = DisguiseRegistry.defaultId
         activeDisguise = registry.defaultDisguise
+        // Just-installed state includes the shipped icon (§9a).
+        appIcons.apply(activeDisguise)
         disguiseEpoch += 1
         failedAttemptCount = 0
         suppressedBackgroundedAt = nil
@@ -159,6 +172,8 @@ final class AppLockCoordinator {
                     caption = nil
                     showNoRecoveryNotice = true
                     activeDisguise = face
+                    // Only now, with the first envelope on disk (§9a).
+                    appIcons.apply(face)
                     // The sentinel is written here, with the first envelope.
                     onSetupComplete?()
                     state = .unlocked
