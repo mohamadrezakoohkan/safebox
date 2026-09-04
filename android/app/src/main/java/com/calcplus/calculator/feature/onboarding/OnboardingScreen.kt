@@ -3,29 +3,18 @@ package com.calcplus.calculator.feature.onboarding
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,11 +28,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Note
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Warning
@@ -53,52 +43,71 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.calcplus.calculator.R
+import com.calcplus.calculator.core.disguise.DisguiseProvider
+import com.calcplus.calculator.core.disguise.DisguiseRegistry
+import com.calcplus.calculator.core.lock.PasscodeRules
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
-import kotlinx.coroutines.delay
+import com.calcplus.calculator.feature.disguise.CarouselMode
+import com.calcplus.calculator.feature.disguise.DisguiseCarousel
 import kotlinx.coroutines.launch
 
 private const val PAGE_COUNT = 4
 private val SuccessGreen = Color(0xFF4ADE80)
 
 /**
- * The guide: what the app really is and how the key-sequence passcode works.
+ * The guide: which disguise to wear, what the app really is, and how a code
+ * works on the chosen face.
+ *
  * [OnboardingMode.FIRST_RUN] shows it while no passcode exists (fresh install /
- * post-erase), before the calculator ever appears — once a vault is set up the
- * disguise is never preceded by an explainer. [OnboardingMode.REVISIT] re-opens
- * the same pages from Settings inside the unlocked vault; there every finish
- * path is a plain dismissal (decisions §5). This composable never touches
- * first-run state itself: [onFinish] is the caller's, and persisting completion
- * goes through [recordOnboardingCompletion], which the mode gates.
- * Styled with the disguise palette so it flows straight into the calculator.
+ * post-erase), before any lock face ever appears — once a vault is set up the
+ * disguise is never preceded by an explainer. Page 1 is the picker (decisions
+ * §6) and pages 3–4 bind live to whichever card is centered.
+ * [OnboardingMode.REVISIT] re-opens the same pages from Settings inside the
+ * unlocked vault, locked on the current face; there every finish path is a
+ * plain dismissal and nothing is written.
+ *
+ * This composable never touches first-run state itself: [onFinish] is the
+ * caller's, and it carries the selected face id — "Skip" passes whatever card
+ * is centered at that moment (decisions §4).
  */
 @Composable
-fun OnboardingScreen(mode: OnboardingMode, onFinish: () -> Unit) {
+fun OnboardingScreen(
+    mode: OnboardingMode,
+    registry: DisguiseRegistry,
+    currentFace: DisguiseProvider,
+    onFinish: (selectedDisguiseId: String) -> Unit,
+) {
     val theme = if (isSystemInDarkTheme()) DisguiseTheme.Dark else DisguiseTheme.Light
     val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
     val scope = rememberCoroutineScope()
     val isLast = pagerState.currentPage == PAGE_COUNT - 1
-    // Top-right: Skip on the first run (hidden on the last page so the CTA is
-    // the only way forward), Done on every page of a revisit.
     val showsTrailingButton = !isLast || mode.showsTrailingButtonOnLastPage
+
+    // A revisit is locked on the enrolled face; the first run starts on the
+    // registry default and follows the carousel.
+    var selectedId by remember(mode, currentFace.id) {
+        mutableStateOf(
+            if (mode == OnboardingMode.REVISIT) currentFace.id else registry.default.id
+        )
+    }
+    val selectedFace = registry.resolve(selectedId)
 
     Box(
         modifier = Modifier
@@ -119,7 +128,7 @@ fun OnboardingScreen(mode: OnboardingMode, onFinish: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AnimatedVisibility(visible = showsTrailingButton, enter = fadeIn(), exit = fadeOut()) {
-                    TextButton(onClick = onFinish) {
+                    TextButton(onClick = { onFinish(selectedId) }) {
                         Text(stringResource(mode.trailingButtonLabel), color = theme.caption, fontSize = 15.sp)
                     }
                 }
@@ -130,10 +139,20 @@ fun OnboardingScreen(mode: OnboardingMode, onFinish: () -> Unit) {
                 modifier = Modifier.weight(1f),
             ) { page ->
                 when (page) {
-                    0 -> DisguisePage(pagerState, theme)
+                    0 -> DisguisePickerPage(
+                        registry = registry,
+                        mode = mode,
+                        current = currentFace,
+                        selectedId = selectedId,
+                        onSelectedChange = { selectedId = it },
+                        theme = theme,
+                    )
                     1 -> VaultPage(pagerState, theme)
-                    2 -> CodePlaygroundPage(theme)
-                    else -> EqualsPage(theme)
+                    // Pages 3 and 4 belong to the selected face and are
+                    // recreated whole when the selection changes, so a
+                    // playground never carries state across faces.
+                    2 -> key(selectedFace.id) { FaceCodePage(selectedFace, theme) }
+                    else -> key(selectedFace.id) { FaceCommitPage(selectedFace, theme) }
                 }
             }
 
@@ -142,7 +161,7 @@ fun OnboardingScreen(mode: OnboardingMode, onFinish: () -> Unit) {
             Button(
                 onClick = {
                     if (isLast) {
-                        onFinish()
+                        onFinish(selectedId)
                     } else {
                         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                     }
@@ -178,90 +197,50 @@ private fun Modifier.heroParallax(pagerState: PagerState, page: Int): Modifier =
     alpha = 1f - (if (offset < 0) -offset else offset).coerceIn(0f, 1f) * 0.5f
 }
 
+// MARK: Page 1 — the disguise carousel
+
 @Composable
-private fun PageColumn(
+private fun DisguisePickerPage(
+    registry: DisguiseRegistry,
+    mode: OnboardingMode,
+    current: DisguiseProvider,
+    selectedId: String,
+    onSelectedChange: (String) -> Unit,
     theme: DisguiseTheme,
-    title: String,
-    body: String,
-    hero: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 28.dp),
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(modifier = Modifier.weight(0.9f))
-        hero()
-        Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
-            title,
+            stringResource(R.string.onboarding_disguise_title),
             color = theme.displayText,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
-            body,
+            stringResource(R.string.onboarding_disguise_body),
             color = theme.caption,
             fontSize = 15.sp,
             lineHeight = 22.sp,
             textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 28.dp),
         )
-        Spacer(modifier = Modifier.weight(1f))
-    }
-}
-
-// MARK: Page 1 — the disguise (flip card)
-
-@Composable
-private fun DisguisePage(pagerState: PagerState, theme: DisguiseTheme) {
-    PageColumn(
-        theme = theme,
-        title = stringResource(R.string.onboarding_page1_title),
-        body = stringResource(R.string.onboarding_page1_body),
-    ) {
-        val rotation = remember { Animatable(0f) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(1700)
-                rotation.animateTo(
-                    rotation.value + 180f,
-                    tween(durationMillis = 650, easing = FastOutSlowInEasing),
-                )
-            }
-        }
-        val normalized = ((rotation.value % 360f) + 360f) % 360f
-        val showingLock = normalized > 90f && normalized < 270f
-        Box(
-            modifier = Modifier
-                .heroParallax(pagerState, 0)
-                .size(148.dp)
-                .graphicsLayer {
-                    rotationY = rotation.value
-                    cameraDistance = 14f * density
-                }
-                .background(
-                    if (showingLock) theme.keyOp else theme.keyDigit,
-                    RoundedCornerShape(34.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (showingLock) {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = Color.White,
-                    // Back face: mirror the content so it reads correctly.
-                    modifier = Modifier
-                        .size(60.dp)
-                        .graphicsLayer { rotationY = 180f },
-                )
-            } else {
-                Text("=", color = theme.keyLabel, fontSize = 64.sp, fontWeight = FontWeight.Medium)
-            }
-        }
+        Spacer(modifier = Modifier.height(18.dp))
+        DisguiseCarousel(
+            registry = registry,
+            mode = if (mode == OnboardingMode.REVISIT) CarouselMode.REVISIT else CarouselMode.FIRST_RUN,
+            current = current,
+            selectedId = selectedId,
+            onSelectedChange = onSelectedChange,
+            theme = theme,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -344,16 +323,12 @@ private fun VaultPage(pagerState: PagerState, theme: DisguiseTheme) {
     }
 }
 
-// MARK: Page 3 — interactive code playground
+// MARK: Page 3 — the selected face's interactive code playground
 
-/**
- * A real mini keypad the user can tap to feel how a key-sequence code works.
- * Purely illustrative: nothing leaves this composable, and the page's state is
- * discarded the moment it scrolls out of the pager viewport.
- */
 @Composable
-private fun CodePlaygroundPage(theme: DisguiseTheme) {
-    val taps = remember { mutableStateListOf<String>() }
+private fun FaceCodePage(face: DisguiseProvider, theme: DisguiseTheme) {
+    var count by remember { mutableIntStateOf(0) }
+    var resetToken by remember { mutableIntStateOf(0) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -362,7 +337,7 @@ private fun CodePlaygroundPage(theme: DisguiseTheme) {
     ) {
         Spacer(modifier = Modifier.weight(0.7f))
         Text(
-            stringResource(R.string.onboarding_page3_title),
+            stringResource(face.guide.page3Title),
             color = theme.displayText,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
@@ -370,36 +345,18 @@ private fun CodePlaygroundPage(theme: DisguiseTheme) {
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            stringResource(R.string.onboarding_page3_body),
+            stringResource(face.guide.page3Body),
             color = theme.caption,
             fontSize = 14.sp,
             lineHeight = 20.sp,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.weight(0.5f))
+        Spacer(modifier = Modifier.weight(0.4f))
 
-        // Recorded-sequence chips (last 8 shown), each popping in with a spring.
-        Row(
-            modifier = Modifier.heightIn(min = 40.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (taps.size > 8) {
-                Text("…", color = theme.caption, fontSize = 18.sp)
-            }
-            taps.takeLast(8).forEachIndexed { index, label ->
-                // Key on absolute position so existing chips don't re-animate.
-                androidx.compose.runtime.key(taps.size - minOf(taps.size, 8) + index) {
-                    TapChip(label, theme)
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // 4 progress pips → green check caption once the demo code is long enough.
+        // The shared 4 progress pips: the host's minimum, on every face.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(4) { i ->
-                val filled = taps.size > i
+            repeat(PasscodeRules.MIN_TOKENS) { i ->
+                val filled = count > i
                 val color by animateColorAsState(
                     if (filled) SuccessGreen else theme.keyFn,
                     label = "pip$i",
@@ -412,93 +369,33 @@ private fun CodePlaygroundPage(theme: DisguiseTheme) {
             }
         }
         Spacer(modifier = Modifier.height(10.dp))
-        AnimatedContent(targetState = taps.size >= 4, label = "playgroundCaption") { enough ->
+        AnimatedContent(
+            targetState = count >= PasscodeRules.MIN_TOKENS,
+            label = "playgroundCaption",
+        ) { enough ->
             Text(
-                stringResource(if (enough) R.string.onboarding_page3_ok else R.string.onboarding_page3_try),
+                stringResource(if (enough) face.guide.page3Ok else face.guide.page3Try),
                 color = if (enough) SuccessGreen else theme.caption,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
             )
         }
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val rows = listOf(
-                listOf("7" to false, "8" to false, "9" to false, "÷" to true),
-                listOf("4" to false, "5" to false, "6" to false, "×" to true),
-                listOf("1" to false, "2" to false, "3" to false, "+" to true),
-            )
-            rows.forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { (label, isOp) ->
-                        DemoKey(label, isOp, theme) { taps.add(label) }
-                    }
-                }
-            }
-        }
+        face.guide.Playground(resetToken = resetToken, onCountChanged = { count = it })
+
         Spacer(modifier = Modifier.height(6.dp))
-        TextButton(onClick = { taps.clear() }) {
+        TextButton(onClick = { resetToken += 1 }) {
             Text(stringResource(R.string.onboarding_page3_clear), color = theme.caption, fontSize = 13.sp)
         }
         Spacer(modifier = Modifier.weight(1f))
     }
 }
 
-@Composable
-private fun TapChip(label: String, theme: DisguiseTheme) {
-    val scale = remember { Animatable(0.5f) }
-    LaunchedEffect(Unit) {
-        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-    }
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-            }
-            .background(theme.keyFn, RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    ) {
-        Text(label, color = theme.keyLabel, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-    }
-}
+// MARK: Page 4 — the commit gesture and the no-recovery warning
 
 @Composable
-private fun DemoKey(label: String, isOperator: Boolean, theme: DisguiseTheme, onTap: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val rest = if (isOperator) theme.keyOp else theme.keyDigit
-    val pressedFill = if (isOperator) theme.keyOpPressed else theme.keyDigitPressed
-    val fill by animateColorAsState(
-        targetValue = if (pressed) pressedFill else rest,
-        animationSpec = if (pressed) snap() else tween(180),
-        label = "demoKeyFill",
-    )
-    val haptics = LocalHapticFeedback.current
-    Box(
-        modifier = Modifier
-            .size(58.dp)
-            .background(fill, RoundedCornerShape(14.dp))
-            .clickable(interactionSource = interactionSource, indication = null) {
-                haptics.performHapticFeedback(HapticFeedbackType.KeyboardTap)
-                onTap()
-            }
-            .semantics { contentDescription = "demo key $label" },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            color = if (isOperator) theme.keyLabelOnOp else theme.keyLabel,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-// MARK: Page 4 — the = ritual and no-recovery warning
-
-@Composable
-private fun EqualsPage(theme: DisguiseTheme) {
+private fun FaceCommitPage(face: DisguiseProvider, theme: DisguiseTheme) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -506,31 +403,10 @@ private fun EqualsPage(theme: DisguiseTheme) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.weight(0.9f))
-        val infinite = rememberInfiniteTransition(label = "equalsPulse")
-        val pulse by infinite.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.09f,
-            animationSpec = infiniteRepeatable(
-                tween(850, easing = FastOutSlowInEasing),
-                RepeatMode.Reverse,
-            ),
-            label = "pulse",
-        )
-        Box(
-            modifier = Modifier
-                .size(104.dp)
-                .graphicsLayer {
-                    scaleX = pulse
-                    scaleY = pulse
-                }
-                .background(theme.keyOp, RoundedCornerShape(26.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("=", color = theme.keyLabelOnOp, fontSize = 48.sp, fontWeight = FontWeight.Medium)
-        }
+        face.guide.CommitHero()
         Spacer(modifier = Modifier.weight(0.5f))
         Text(
-            stringResource(R.string.onboarding_page4_title),
+            stringResource(face.guide.page4Title),
             color = theme.displayText,
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
@@ -538,7 +414,7 @@ private fun EqualsPage(theme: DisguiseTheme) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            stringResource(R.string.onboarding_page4_body),
+            stringResource(face.guide.page4Body),
             color = theme.caption,
             fontSize = 15.sp,
             lineHeight = 22.sp,

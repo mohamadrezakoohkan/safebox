@@ -7,7 +7,9 @@ struct SettingsScreen: View {
     let container: AppContainer
 
     @State private var showChangeFlow = false
+    @State private var showDisguiseFlow = false
     @State private var showChangedConfirmation = false
+    @State private var showDisguiseChanged = false
     @State private var showEraseConfirm = false
     @State private var showEraseFinal = false
     @State private var showGuide = false
@@ -24,6 +26,17 @@ struct SettingsScreen: View {
                 Section(VaultCopy.settingsSectionSecurity) {
                     Button(LockCopy.settingsChangeTitle) {
                         showChangeFlow = true
+                    }
+                    // Directly under "Change passcode" (decisions §5): this row
+                    // re-enrolls the code, so it belongs beside the other
+                    // passcode row — not under an Appearance section.
+                    Button {
+                        showDisguiseFlow = true
+                    } label: {
+                        SettingsRowLabel(
+                            title: VaultCopy.settingsChangeDisguiseTitle,
+                            subtitle: container.lockCoordinator.activeDisguise.displayName
+                        )
                     }
                     Button(VaultCopy.settingsLockNow) {
                         container.lockCoordinator.lock()
@@ -101,8 +114,18 @@ struct SettingsScreen: View {
             // deallocated with the vault instead; see UpdateCheckTaskBox.
             .sheet(isPresented: $showChangeFlow) {
                 ChangePasscodeFlow(
-                    session: PasscodeEntrySession(passcodeStore: container.passcodeStore),
+                    session: makeSession(kind: .changePasscode),
                     onChanged: { showChangedConfirmation = true }
+                )
+                .interactiveDismissDisabled()
+            }
+            .sheet(isPresented: $showDisguiseFlow) {
+                ChangePasscodeFlow(
+                    session: makeSession(kind: .changeDisguise),
+                    onChanged: {
+                        container.lockCoordinator.reloadActiveDisguise()
+                        showDisguiseChanged = true
+                    }
                 )
                 .interactiveDismissDisabled()
             }
@@ -111,10 +134,18 @@ struct SettingsScreen: View {
             // the sheet. Nothing here calls completeOnboarding() or touches
             // OnboardingSentinel; the vault stays unlocked underneath.
             .sheet(isPresented: $showGuide) {
-                OnboardingView(mode: .revisit, onFinish: { showGuide = false })
+                OnboardingView(mode: .revisit,
+                               registry: container.lockCoordinator.registry,
+                               currentDisguiseId: container.lockCoordinator.activeDisguise.id,
+                               onFinish: { _ in showGuide = false })
             }
             .alert(LockCopy.changeSuccess, isPresented: $showChangedConfirmation) {
                 Button(VaultCopy.okAction, role: .cancel) {}
+            }
+            .alert(VaultCopy.disguiseSwitchSuccessTitle, isPresented: $showDisguiseChanged) {
+                Button(VaultCopy.okAction, role: .cancel) {}
+            } message: {
+                Text(VaultCopy.disguiseSwitchSuccessBody)
             }
             // Two-step destructive confirm; the nuke leaves this screen the
             // moment the lock state resets, so nothing here awaits UI state.
@@ -135,6 +166,15 @@ struct SettingsScreen: View {
                 Text(LockCopy.nukeFinalBody)
             }
         }
+    }
+
+    private func makeSession(kind: PasscodeEntrySession.Kind) -> PasscodeEntrySession {
+        PasscodeEntrySession(
+            passcodeStore: container.passcodeStore,
+            registry: container.lockCoordinator.registry,
+            currentDisguise: container.lockCoordinator.activeDisguise,
+            kind: kind
+        )
     }
 
     private static var versionString: String {

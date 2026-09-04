@@ -2,20 +2,13 @@ import Foundation
 
 enum SetupPhase: Equatable, Sendable {
     case enterNew
-    case confirm(pending: [CalcKey])
+    case confirm(pending: [String])
 }
 
 enum LockState: Equatable, Sendable {
     case firstRunSetup(SetupPhase)
     case locked
     case unlocked
-}
-
-/// Caption strip content (design spec §5.5): a primary banner line plus an
-/// optional secondary hint/warning line.
-struct LockBanner: Equatable, Sendable {
-    var primary: String
-    var secondary: String?
 }
 
 /// Resolves one shared-copy-table entry: the key is the cross-platform string
@@ -27,6 +20,10 @@ func localizedCopy(_ key: StaticString, _ defaultValue: String.LocalizationValue
 
 /// Consolidated copy table (design spec §6). No lock-screen string ever
 /// contains "passcode", "vault", "unlock", or "SafeBox".
+///
+/// The caption entries here are the **calculator face's** caption mapping
+/// (decisions §2.1) and are pinned verbatim; the other two faces map the same
+/// `CaptionKind`s to their own strings.
 enum LockCopy {
     static let setupEntryBanner = localizedCopy("setup_entry_banner", "Set your secret code: type it on the keypad, then press =")
     static let setupEntryHint = localizedCopy("setup_entry_hint", "Best: 6+ keys with a symbol (+ − × ÷ % ± .), and not a sum someone might really type.")

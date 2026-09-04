@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -35,6 +36,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.toRoute
 import com.calcplus.calculator.R
 import com.calcplus.calculator.core.navigation.AlbumListRoute
+import com.calcplus.calculator.core.navigation.ChangeDisguiseRoute
 import com.calcplus.calculator.core.navigation.ChangePasscodeRoute
 import com.calcplus.calculator.core.navigation.ContactDetailRoute
 import com.calcplus.calculator.core.navigation.ContactEditRoute
@@ -55,6 +57,7 @@ import com.calcplus.calculator.core.navigation.SettingsTab
 import com.calcplus.calculator.core.navigation.TrashRoute
 import com.calcplus.calculator.core.navigation.VaultRouting
 import com.calcplus.calculator.di.AppContainer
+import com.calcplus.calculator.feature.disguise.ChangeDisguiseScreen
 import com.calcplus.calculator.feature.contacts.ContactDetailScreen
 import com.calcplus.calculator.feature.contacts.ContactEditScreen
 import com.calcplus.calculator.feature.contacts.ContactListScreen
@@ -308,6 +311,7 @@ private fun VaultNavHost(
                     SettingsScreen(
                         container = container,
                         onChangePasscode = { navController.navigate(ChangePasscodeRoute) },
+                        onChangeDisguise = { navController.navigate(ChangeDisguiseRoute) },
                         onOpenGuide = { navController.navigate(GuideRoute) { launchSingleTop = true } },
                         onOpenPrivacy = { navController.navigate(PrivacyRoute) { launchSingleTop = true } },
                         onOpenTrash = { navController.navigate(TrashRoute) { launchSingleTop = true } },
@@ -315,6 +319,14 @@ private fun VaultNavHost(
                 }
                 composable<ChangePasscodeRoute> {
                     ChangePasscodeScreen(
+                        container = container,
+                        onDone = { navController.popBackStack() },
+                    )
+                }
+                // Change disguise (decisions §5): the switch flow, mirroring
+                // the change-passcode route above.
+                composable<ChangeDisguiseRoute> {
+                    ChangeDisguiseScreen(
                         container = container,
                         onDone = { navController.popBackStack() },
                     )
@@ -337,8 +349,12 @@ private fun VaultNavHost(
                 // first-run state cannot be written from a revisit by
                 // construction; the vault stays unlocked and Settings is below.
                 composable<GuideRoute> {
+                    val currentFace by container.lockManager.activeDisguise
+                        .collectAsStateWithLifecycle()
                     OnboardingScreen(
                         mode = OnboardingMode.REVISIT,
+                        registry = container.disguiseRegistry,
+                        currentFace = currentFace,
                         onFinish = { navController.popBackStack() },
                     )
                 }

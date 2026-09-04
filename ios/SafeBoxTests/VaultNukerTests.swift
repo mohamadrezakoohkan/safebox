@@ -59,7 +59,9 @@ struct VaultNukerTests {
         }
 
         let passcodeStore = InMemoryPasscodeStore()
-        try await passcodeStore.set(sequence: [.d1, .d2, .d3, .d4])
+        try await passcodeStore.set(tokens: ["D1", "D2", "D3", "D4"],
+                                    alphabet: CalculatorDisguise().alphabet,
+                                    activeDisguiseId: "calculator")
         let coordinator = AppLockCoordinator(passcodeStore: passcodeStore)
         OnboardingSentinel.setComplete(defaults: defaults)
         SortPreferences.setAlbumSort(.photoCount, defaults: defaults)

@@ -4,6 +4,7 @@ import android.app.Application
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import com.calcplus.calculator.core.data.OnboardingSentinelWriter
 import com.calcplus.calculator.core.data.TrashHousekeeping
 import com.calcplus.calculator.di.AppContainer
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,16 @@ class SafeBoxApplication : Application(), SingletonImageLoader.Factory {
                 lockState = container.lockManager.lockState,
                 now = { System.currentTimeMillis() },
                 purge = { now -> container.trashRepository.purgeExpired(now) },
+            )
+        }
+
+        // The onboarding sentinel is persisted with the FIRST envelope, not at
+        // guide finish (iteration-3-decisions §4) — same observer shape as the
+        // trash housekeeping above, and for the same reason.
+        applicationScope.launch {
+            OnboardingSentinelWriter.persistOnFirstUnlock(
+                lockState = container.lockManager.lockState,
+                setComplete = { container.onboardingStore.setComplete() },
             )
         }
     }

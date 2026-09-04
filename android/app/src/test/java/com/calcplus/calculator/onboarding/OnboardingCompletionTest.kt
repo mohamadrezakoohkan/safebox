@@ -4,21 +4,25 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import com.calcplus.calculator.core.crypto.BlobWrapper
+import com.calcplus.calculator.core.data.OnboardingSentinelWriter
 import com.calcplus.calculator.core.data.OnboardingStore
 import com.calcplus.calculator.core.data.PasscodeRepositoryImpl
 import com.calcplus.calculator.core.data.PasscodeStore
+import com.calcplus.calculator.core.disguise.DisguiseRegistry
 import com.calcplus.calculator.core.lock.AppLockManager
 import com.calcplus.calculator.core.lock.LockState
-import com.calcplus.calculator.feature.calculator.CalcKey
+import com.calcplus.calculator.feature.calculator.CalculatorDisguise
+import com.calcplus.calculator.feature.numpad.NumpadDisguise
 import com.calcplus.calculator.feature.onboarding.OnboardingMode
 import com.calcplus.calculator.feature.onboarding.recordOnboardingCompletion
+import com.calcplus.calculator.feature.pattern.PatternDisguise
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -32,18 +36,20 @@ private class XorWrapper : BlobWrapper {
 }
 
 /**
- * Decisions §5: finishing or dismissing the guide in revisit mode never writes
- * the onboarding-complete flag — neither the persisted one nor the lock
- * manager's — while the first run still records both exactly as before.
- * Uses the real [OnboardingStore] on a real DataStore file (the VaultNukerTest
- * pattern) and a real [AppLockManager]; nothing is mocked.
+ * Decisions §5: finishing or dismissing the guide in revisit mode never records
+ * completion. Decisions §4: the PERSISTED sentinel now lands with the first
+ * envelope, not at guide finish, so a process death between the two brings the
+ * guide back rather than stranding the user on a face they can no longer choose.
  */
 @RunWith(RobolectricTestRunner::class)
 class OnboardingCompletionTest {
-    private val code = listOf(CalcKey.D7, CalcKey.ADD, CalcKey.D7, CalcKey.PCT)
+    private val code = listOf("D7", "ADD", "D7", "PCT")
 
     private lateinit var passcodeStore: PasscodeStore
     private lateinit var onboardingStore: OnboardingStore
+
+    private val registry =
+        DisguiseRegistry(listOf(CalculatorDisguise, NumpadDisguise, PatternDisguise))
 
     @Before
     fun setUp() {
@@ -58,6 +64,7 @@ class OnboardingCompletionTest {
     /** Fresh install: no passcode, guide showing. */
     private fun firstRunManager() = AppLockManager(
         PasscodeRepositoryImpl(passcodeStore),
+        registry,
         hasPasscode = false,
         elapsedRealtime = { 0L },
         onboardingComplete = false,
@@ -66,6 +73,7 @@ class OnboardingCompletionTest {
     /** A set-up vault whose owner already finished the guide once. */
     private fun setUpManager() = AppLockManager(
         PasscodeRepositoryImpl(passcodeStore),
+        registry,
         hasPasscode = true,
         elapsedRealtime = { 0L },
         onboardingComplete = true,
@@ -73,65 +81,96 @@ class OnboardingCompletionTest {
 
     @Test
     fun revisitDoesNotAlterAnUnsetPersistedFlagNorTheLockManager() = runTest {
-        // The strongest form of "does not alter": even when the flag is NOT
-        // set and the manager still wants the guide, a revisit finish writes
-        // nothing and reports nothing recorded.
         val lockManager = firstRunManager()
         assertFalse(onboardingStore.isCompleteBlocking())
         assertTrue(lockManager.showOnboarding.value)
 
-        val job = recordOnboardingCompletion(OnboardingMode.REVISIT, lockManager, onboardingStore, this)
+        val recorded = recordOnboardingCompletion(OnboardingMode.REVISIT, lockManager, "pattern")
 
-        assertNull(job)
+        assertFalse(recorded)
         assertFalse(onboardingStore.isCompleteBlocking())
         assertTrue(lockManager.showOnboarding.value)
+        // A revisit cannot change the face setup would run on, either.
+        assertEquals("calculator", lockManager.pendingDisguiseId.value)
         assertEquals(LockState.NeedsSetup, lockManager.lockState.value)
     }
 
     @Test
     fun revisitFromTheUnlockedVaultLeavesEverythingAsItWas() = runTest {
-        // The real revisit situation: flag already set, vault unlocked.
         onboardingStore.setComplete()
-        passcodeStore.set(code)
+        passcodeStore.set(code, CalculatorDisguise.alphabet, "calculator")
         val lockManager = setUpManager()
         lockManager.commit(code, overflowed = false)
         assertEquals(LockState.Unlocked, lockManager.lockState.value)
         assertFalse(lockManager.showOnboarding.value)
 
-        val job = recordOnboardingCompletion(OnboardingMode.REVISIT, lockManager, onboardingStore, this)
+        val recorded = recordOnboardingCompletion(OnboardingMode.REVISIT, lockManager, "numpad")
 
-        assertNull(job)
+        assertFalse(recorded)
         assertTrue(onboardingStore.isCompleteBlocking())
         assertFalse(lockManager.showOnboarding.value)
-        // The vault stays unlocked: the user lands back on Settings.
         assertEquals(LockState.Unlocked, lockManager.lockState.value)
     }
 
     @Test
-    fun firstRunRecordsBothTheInMemoryAndThePersistedFlag() = runTest {
+    fun firstRunRecordsTheInMemoryFlagAndTheChosenFaceButNotThePersistedOne() = runTest {
         val lockManager = firstRunManager()
         assertFalse(onboardingStore.isCompleteBlocking())
-        assertTrue(lockManager.showOnboarding.value)
 
-        val job = recordOnboardingCompletion(OnboardingMode.FIRST_RUN, lockManager, onboardingStore, this)
+        val recorded = recordOnboardingCompletion(OnboardingMode.FIRST_RUN, lockManager, "numpad")
 
+        assertTrue(recorded)
         // In-memory flag flips synchronously (the root switch leaves the guide
-        // in the same composition) …
+        // in the same composition) and the picked face is remembered …
         assertFalse(lockManager.showOnboarding.value)
-        // … and the persisted flag lands in the caller's scope.
-        assertNotNull(job)
-        job!!.join()
-        assertTrue(onboardingStore.isCompleteBlocking())
-        // Finishing the guide does not set up a passcode by itself.
+        assertEquals("numpad", lockManager.pendingDisguiseId.value)
+        // … but nothing is persisted yet: decisions §4 moves that to the first
+        // envelope, so a crash here brings the guide back.
+        assertFalse(onboardingStore.isCompleteBlocking())
         assertEquals(LockState.NeedsSetup, lockManager.lockState.value)
     }
 
     @Test
-    fun firstRunIsIdempotent() = runTest {
-        val lockManager = firstRunManager()
-        recordOnboardingCompletion(OnboardingMode.FIRST_RUN, lockManager, onboardingStore, this)!!.join()
-        recordOnboardingCompletion(OnboardingMode.FIRST_RUN, lockManager, onboardingStore, this)!!.join()
-        assertTrue(onboardingStore.isCompleteBlocking())
-        assertFalse(lockManager.showOnboarding.value)
+    fun theSentinelIsPersistedOnTheFirstUnlockOnly() = runTest {
+        val lockState = MutableStateFlow<LockState>(LockState.NeedsSetup)
+        var writes = 0
+        val job = launch {
+            OnboardingSentinelWriter.persistOnFirstUnlock(lockState) { writes += 1 }
+        }
+
+        testScheduler.advanceUntilIdle() // the collector sees NeedsSetup first
+
+        // NeedsSetup → Unlocked: the first envelope just landed.
+        lockState.value = LockState.Unlocked
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, writes)
+
+        // An ordinary lock/unlock cycle writes nothing more.
+        lockState.value = LockState.Locked
+        testScheduler.advanceUntilIdle()
+        lockState.value = LockState.Unlocked
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, writes)
+
+        job.cancel()
+    }
+
+    @Test
+    fun anErasedVaultWritesTheSentinelAgainOnTheNextSetup() = runTest {
+        val lockState = MutableStateFlow<LockState>(LockState.Unlocked)
+        var writes = 0
+        val job = launch {
+            OnboardingSentinelWriter.persistOnFirstUnlock(lockState) { writes += 1 }
+        }
+        testScheduler.advanceUntilIdle()
+        assertEquals(0, writes) // no NeedsSetup before it
+
+        lockState.value = LockState.NeedsSetup // erase everything
+        testScheduler.advanceUntilIdle()
+        lockState.value = LockState.Unlocked // set up again
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, writes)
+
+        job.cancel()
     }
 }

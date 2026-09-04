@@ -1,6 +1,105 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "calculator_commit_gesture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the = key"
+          }
+        }
+      }
+    },
+    "calculator_display_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculator"
+          }
+        }
+      }
+    },
+    "calculator_guide_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That would work — symbols make it stronger"
+          }
+        }
+      }
+    },
+    "calculator_guide_page3_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved."
+          }
+        }
+      }
+    },
+    "calculator_guide_page3_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your code is a key sequence"
+          }
+        }
+      }
+    },
+    "calculator_guide_page4_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden."
+          }
+        }
+      }
+    },
+    "calculator_guide_page4_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press = to enter"
+          }
+        }
+      }
+    },
+    "calculator_guide_try": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap at least 4 keys"
+          }
+        }
+      }
+    },
+    "calculator_tagline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A fully working calculator. A wrong code just calculates — no error, no hint."
+          }
+        }
+      }
+    },
     "cancel_action": {
       "extractionState": "manual",
       "localizations": {
@@ -228,6 +327,94 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld photos deleted"
+          }
+        }
+      }
+    },
+    "disguise_current_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current"
+          }
+        }
+      }
+    },
+    "disguise_grade_incoherent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doesn't match the app's name and icon"
+          }
+        }
+      }
+    },
+    "disguise_grade_native": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matches the app's name and icon"
+          }
+        }
+      }
+    },
+    "disguise_identity_disclosure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On your home screen the app is always called Calculator+ and keeps its calculator icon. Only the screen shown while locked changes — so a Calculator+ that opens to a PIN pad or a pattern is itself a hint that something is hidden."
+          }
+        }
+      }
+    },
+    "disguise_pick_action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use this disguise"
+          }
+        }
+      }
+    },
+    "disguise_switch_explainer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your current code belongs to the %1$@ disguise and is confirmed with %2$@. The new disguise needs a new code, set on its own keys. Your photos, notes, and contacts are unchanged."
+          }
+        }
+      }
+    },
+    "disguise_switch_success_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your new code works from now on. There is no way to recover it — if you forget it, your vault contents cannot be retrieved."
+          }
+        }
+      }
+    },
+    "disguise_switch_success_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disguise changed"
           }
         }
       }
@@ -496,6 +683,237 @@
         }
       }
     },
+    "numpad_commit_gesture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the ✓ key"
+          }
+        }
+      }
+    },
+    "numpad_display_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PIN pad"
+          }
+        }
+      }
+    },
+    "numpad_face_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter PIN"
+          }
+        }
+      }
+    },
+    "numpad_guide_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That would work — more digits make it stronger"
+          }
+        }
+      }
+    },
+    "numpad_guide_page3_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any digits, any length from 4 to 32 — order matters. Try one here. This is just practice; nothing is saved."
+          }
+        }
+      }
+    },
+    "numpad_guide_page3_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your PIN is 4 to 32 digits"
+          }
+        }
+      }
+    },
+    "numpad_guide_page4_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To unlock, enter your PIN and tap ✓. A wrong PIN shakes and clears — anyone can see it's a lock screen, but not what it protects."
+          }
+        }
+      }
+    },
+    "numpad_guide_page4_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap ✓ to enter"
+          }
+        }
+      }
+    },
+    "numpad_guide_try": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap at least 4 digits"
+          }
+        }
+      }
+    },
+    "numpad_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Best: 6 or more digits — not a date, not a repeat."
+          }
+        }
+      }
+    },
+    "numpad_mismatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PINs didn't match — start again"
+          }
+        }
+      }
+    },
+    "numpad_prompt_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-enter the same PIN, then tap ✓"
+          }
+        }
+      }
+    },
+    "numpad_prompt_confirm_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-enter the new PIN, then tap ✓"
+          }
+        }
+      }
+    },
+    "numpad_prompt_current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your current PIN, then tap ✓"
+          }
+        }
+      }
+    },
+    "numpad_prompt_new": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a PIN: enter 4 to 32 digits, then tap ✓"
+          }
+        }
+      }
+    },
+    "numpad_prompt_new_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your new PIN, then tap ✓"
+          }
+        }
+      }
+    },
+    "numpad_tagline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A plain PIN screen. A wrong PIN shakes and clears, like a phone lock."
+          }
+        }
+      }
+    },
+    "numpad_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too long — start again (max 32 digits)"
+          }
+        }
+      }
+    },
+    "numpad_too_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too short — use at least 4 digits"
+          }
+        }
+      }
+    },
+    "numpad_trivial_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Easy to guess — re-enter it to keep it anyway, or enter a different PIN to start over."
+          }
+        }
+      }
+    },
+    "numpad_wrong_code": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incorrect PIN — try again"
+          }
+        }
+      }
+    },
     "ok_action": {
       "extractionState": "manual",
       "localizations": {
@@ -503,6 +921,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "OK"
+          }
+        }
+      }
+    },
+    "onboarding_disguise_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anyone who opens Calculator+ sees only this screen. You can change it later in Settings."
+          }
+        }
+      }
+    },
+    "onboarding_disguise_revisit_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is your current disguise. You can change it in Settings → Change disguise."
+          }
+        }
+      }
+    },
+    "onboarding_disguise_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a disguise"
           }
         }
       }
@@ -525,28 +976,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next"
-          }
-        }
-      }
-    },
-    "onboarding_page1_body": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Calculator+ is a fully working calculator on the surface. Anyone who opens it sees exactly that — and nothing else."
-          }
-        }
-      }
-    },
-    "onboarding_page1_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Looks like a calculator"
           }
         }
       }
@@ -639,17 +1068,6 @@
         }
       }
     },
-    "onboarding_page3_body": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved."
-          }
-        }
-      }
-    },
     "onboarding_page3_clear": {
       "extractionState": "manual",
       "localizations": {
@@ -657,61 +1075,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reset"
-          }
-        }
-      }
-    },
-    "onboarding_page3_ok": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "That would work — symbols make it stronger"
-          }
-        }
-      }
-    },
-    "onboarding_page3_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your code is a key sequence"
-          }
-        }
-      }
-    },
-    "onboarding_page3_try": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap at least 4 keys"
-          }
-        }
-      }
-    },
-    "onboarding_page4_body": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden."
-          }
-        }
-      }
-    },
-    "onboarding_page4_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Press = to enter"
           }
         }
       }
@@ -745,6 +1108,226 @@
           "stringUnit": {
             "state": "translated",
             "value": "Set my code"
+          }
+        }
+      }
+    },
+    "pattern_a11y_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not usable with a screen reader"
+          }
+        }
+      }
+    },
+    "pattern_commit_gesture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a finger lift"
+          }
+        }
+      }
+    },
+    "pattern_display_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pattern"
+          }
+        }
+      }
+    },
+    "pattern_face_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw your pattern"
+          }
+        }
+      }
+    },
+    "pattern_guide_ok": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That would work — more dots and turns make it stronger"
+          }
+        }
+      }
+    },
+    "pattern_guide_page3_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw one stroke through 4 to 9 dots — each dot once, and the path matters. Try one here. This is just practice; nothing is saved."
+          }
+        }
+      }
+    },
+    "pattern_guide_page3_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pattern connects the dots"
+          }
+        }
+      }
+    },
+    "pattern_guide_page4_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To unlock, draw your pattern and lift your finger. A wrong pattern shakes and clears — anyone can see it's a lock screen, but not what it protects."
+          }
+        }
+      }
+    },
+    "pattern_guide_page4_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lift your finger to enter"
+          }
+        }
+      }
+    },
+    "pattern_guide_try": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect at least 4 dots"
+          }
+        }
+      }
+    },
+    "pattern_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Best: 6 or more dots with a turn or two — not a straight line or a letter."
+          }
+        }
+      }
+    },
+    "pattern_mismatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patterns didn't match — start again"
+          }
+        }
+      }
+    },
+    "pattern_prompt_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw the same pattern again"
+          }
+        }
+      }
+    },
+    "pattern_prompt_confirm_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw the new pattern again"
+          }
+        }
+      }
+    },
+    "pattern_prompt_current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw your current pattern"
+          }
+        }
+      }
+    },
+    "pattern_prompt_new": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a pattern: connect at least 4 dots, then lift your finger"
+          }
+        }
+      }
+    },
+    "pattern_prompt_new_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw your new pattern, then lift your finger"
+          }
+        }
+      }
+    },
+    "pattern_tagline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect the dots in one stroke. A wrong pattern shakes and clears, like an Android lock."
+          }
+        }
+      }
+    },
+    "pattern_too_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too short — connect at least 4 dots"
+          }
+        }
+      }
+    },
+    "pattern_wrong_code": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrong pattern — try again"
           }
         }
       }
@@ -910,6 +1493,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld selected"
+          }
+        }
+      }
+    },
+    "settings_change_disguise_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change disguise"
           }
         }
       }

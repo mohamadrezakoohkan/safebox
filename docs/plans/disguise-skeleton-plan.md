@@ -1,9 +1,9 @@
 # SafeBox — Disguise Skeleton Plan (Pluggable Disguise Abstraction)
 
 **Document:** `docs/plans/disguise-skeleton-plan.md`
-**Status:** **Design-only.** Target: **iteration 2**. Iteration 1 ships the calculator hard-wired exactly as specified in `docs/plans/idea-plan.md`, `docs/plans/ios-plan.md`, and `docs/plans/android-plan.md` — this document changes **nothing** in iteration-1 scope, code, or acceptance criteria. Where this document and the committed plans describe the same behavior, the committed plans win for iteration 1; this document then carries that behavior forward, generalized, into iteration 2.
+**Status:** **Implemented in iteration 3, with amendments.** This document remains the design rationale for the pluggable-disguise contract; `docs/plans/iteration-3-decisions.md` is the **binding spec** for what actually shipped and **wins on every conflict**. Its §10 lists each statement here that iteration 3 supersedes — notably the switch-flow order (§2.3), the three-event freeze (§3.2b/§4.3, now four with `removeLast`), the "nothing ever in `Disguise` mode" rule (§3.2d, now covert-faces-only), the Settings row placement (§6), first-run on the default face (§6), the Android cover face being unused (§4.2), and open questions Q1/Q3 (§10). The contract was designed for iteration 2 but not built then; iteration 2 shipped other work, and the calculator stayed hard-wired until iteration 3.
 **Relationship to mockups:** this document is the written spec and stands alone as the authority. Visual mockups are produced separately from it; §8 lists the artboards they must cover.
-**Last updated:** 2026-08
+**Last updated:** 2026-09 (status and supersession notes; body otherwise as designed in 2026-08)
 
 ---
 

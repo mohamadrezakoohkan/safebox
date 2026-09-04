@@ -6,7 +6,7 @@ import Testing
 /// locking, setup-phase changes, erase-everything and epoch bumps are cuts.
 struct UnlockRevealTests {
     private static let setupEntry = LockState.firstRunSetup(.enterNew)
-    private static let setupConfirm = LockState.firstRunSetup(.confirm(pending: [.d1, .d2, .add, .d4]))
+    private static let setupConfirm = LockState.firstRunSetup(.confirm(pending: ["D1", "D2", "ADD", "D4"]))
     private static let everyState: [LockState] = [setupEntry, setupConfirm, .locked, .unlocked]
 
     // MARK: - Shared constants

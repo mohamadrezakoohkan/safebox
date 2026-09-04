@@ -24,7 +24,11 @@ import com.calcplus.calculator.core.domain.repository.PasscodeRepository
 import com.calcplus.calculator.core.domain.repository.PhotoRepository
 import com.calcplus.calculator.core.domain.repository.SortPreferences
 import com.calcplus.calculator.core.domain.repository.TrashRepository
+import com.calcplus.calculator.core.disguise.DisguiseRegistry
 import com.calcplus.calculator.core.lock.AppLockManager
+import com.calcplus.calculator.feature.calculator.CalculatorDisguise
+import com.calcplus.calculator.feature.numpad.NumpadDisguise
+import com.calcplus.calculator.feature.pattern.PatternDisguise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -59,11 +63,24 @@ class AppContainer(context: Context, val applicationScope: CoroutineScope) {
     // §2.3) — not one runBlocking per store.
     private val startupPrefs = runBlocking { prefsDataStore.data.first() }
 
+    /**
+     * The compiled-in lock faces, in registry order (iteration-3-decisions
+     * §1.6). Append-only: a shipped face is never removed.
+     */
+    val disguiseRegistry = DisguiseRegistry(
+        listOf(CalculatorDisguise, NumpadDisguise, PatternDisguise)
+    )
+
     val lockManager = AppLockManager(
         passcodeRepository = passcodeRepository,
+        registry = disguiseRegistry,
         hasPasscode = startupPrefs[PasscodeStore.KEY_BLOB] != null,
         elapsedRealtime = { SystemClock.elapsedRealtime() },
         onboardingComplete = startupPrefs[OnboardingStore.KEY_COMPLETE] ?: false,
+        // The face comes from the SAME startup snapshot as the two flags above
+        // — the mirror key, never the envelope. Unwrapping the envelope here
+        // would mean Keystore work in Application.onCreate (decisions §3).
+        initialActiveDisguiseId = startupPrefs[PasscodeStore.KEY_ACTIVE_DISGUISE],
     )
 
     val database: SafeBoxDatabase by lazy { SafeBoxDatabase.build(appContext) }

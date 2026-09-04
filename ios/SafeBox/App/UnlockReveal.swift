@@ -4,13 +4,13 @@ import SwiftUI
 /// §11), value-for-value the same as Android's `object UnlockReveal`.
 ///
 /// Treatment: "zoom-in reveal" (shared-axis Z). The vault fades in while
-/// scaling `initialScale → 1.0`; the calculator fades out in place (no scale).
+/// scaling `initialScale → 1.0`; the lock face fades out in place (no scale).
 /// Both run concurrently over `durationMs` on the emphasized-decelerate curve.
 ///
 /// It plays ONLY when the lock state becomes `.unlocked` — from `.locked` or
 /// from first-run setup, which deliberately uses the same reveal. Every other
 /// change is an instant cut: manual lock, background lock, setup-phase
-/// changes, erase-everything, and every `calculatorEpoch` bump (a recreated
+/// changes, erase-everything, and every `disguiseEpoch` bump (a recreated
 /// calculator must never read as a transition).
 ///
 /// Reduced motion (`accessibilityReduceMotion`) drops the scale and keeps an
@@ -70,11 +70,11 @@ enum UnlockReveal {
         return .asymmetric(insertion: insertion, removal: .identity)
     }
 
-    /// Transition for the calculator surface: it fades out in place and never
-    /// scales. Insertion (lock) is a cut. Constant on purpose — a removal
-    /// transition is captured from the last frame the view was on screen, so
-    /// it must not depend on the state being transitioned to.
-    static var calculatorTransition: AnyTransition {
+    /// Transition for the lock face: it fades out in place and never scales.
+    /// Insertion (lock) is a cut. Constant on purpose — a removal transition is
+    /// captured from the last frame the view was on screen, so it must not
+    /// depend on the state being transitioned to.
+    static var lockFaceTransition: AnyTransition {
         .asymmetric(insertion: .identity, removal: .opacity)
     }
 }

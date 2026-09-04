@@ -53,7 +53,7 @@ class UnlockRevealTest {
 
     @Test
     fun sameStateChangesAreCuts() {
-        // What a calculatorEpoch bump (calculator recreated pristine) or a
+        // What a surfaceEpoch bump (the lock face recreated pristine) or a
         // redundant emission looks like at this level: nothing to animate.
         states.forEach { state ->
             assertEquals("$state → $state", Kind.CUT, UnlockReveal.kind(state, state, 1f))

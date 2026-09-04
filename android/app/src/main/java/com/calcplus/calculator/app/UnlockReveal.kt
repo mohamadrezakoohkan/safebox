@@ -23,7 +23,7 @@ import com.calcplus.calculator.core.lock.LockState
  * The rule is deliberately narrow. A change INTO [LockState.Unlocked] — from
  * [LockState.Locked] or from first-run setup ([LockState.NeedsSetup]) — is the
  * only lock-state change that animates. Locking in any form (manual, background,
- * erase), setup ↔ locked, and every `calculatorEpoch` bump are instant cuts:
+ * erase), setup ↔ locked, and every `surfaceEpoch` bump are instant cuts:
  * the calculator's recreation must never read as a transition.
  *
  * Android has no reduce-motion flag. Its only signal is the developer option

@@ -29,7 +29,7 @@ import com.calcplus.calculator.core.domain.repository.NoteRepository
 import com.calcplus.calculator.core.domain.repository.PasscodeRepository
 import com.calcplus.calculator.core.domain.repository.PhotoRepository
 import com.calcplus.calculator.core.markdown.NoteDerivation
-import com.calcplus.calculator.feature.calculator.CalcKey
+import com.calcplus.calculator.core.disguise.AlphabetDescriptor
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -500,6 +500,13 @@ class ContactRepositoryImpl(
 class PasscodeRepositoryImpl(
     private val store: PasscodeStore,
 ) : PasscodeRepository {
-    override suspend fun set(sequence: List<CalcKey>) = store.set(sequence)
-    override suspend fun matches(sequence: List<CalcKey>): Boolean = store.matches(sequence)
+    override suspend fun set(
+        tokens: List<String>,
+        alphabet: AlphabetDescriptor,
+        activeDisguiseId: String,
+    ) = store.set(tokens, alphabet, activeDisguiseId)
+
+    override suspend fun matches(tokens: List<String>): Boolean = store.matches(tokens)
+
+    override suspend fun activeDisguiseId(): String? = store.activeDisguiseId()
 }

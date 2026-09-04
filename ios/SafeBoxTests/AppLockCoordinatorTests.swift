@@ -14,10 +14,11 @@ struct AppLockCoordinatorTests {
         return (coordinator, store)
     }
 
-    private func makeLockedCoordinator(clock: FakeClock = FakeClock())
+    private func makeLockedCoordinator(clock: FakeClock = FakeClock(),
+                                       disguiseId: String = "calculator")
     async -> (AppLockCoordinator, SpyPasscodeStore) {
         let store = SpyPasscodeStore()
-        await store.seed([.d1, .d2, .add, .d3, .d4])
+        await store.seed(["D1", "D2", "ADD", "D3", "D4"], activeDisguiseId: disguiseId)
         let coordinator = AppLockCoordinator(passcodeStore: store, uptime: { clock.now })
         return (coordinator, store)
     }
@@ -27,65 +28,67 @@ struct AppLockCoordinatorTests {
     @Test func freshInstallStartsInSetup() {
         let (coordinator, _) = makeSetupCoordinator()
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.banner?.primary == LockCopy.setupEntryBanner)
-        #expect(coordinator.banner?.secondary == LockCopy.setupEntryHint)
+        #expect(coordinator.caption?.primary == .promptNewSetup)
+        #expect(coordinator.caption?.secondary == .strengthHint)
+        #expect(coordinator.surfaceMode == .captureNew)
     }
 
     @Test func setupTooShortStaysInEntry() async {
         let (coordinator, store) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .d3], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "D3"], overflowed: false)
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.banner?.primary == LockCopy.setupTooShort)
+        #expect(coordinator.caption?.primary == .tooShort)
         #expect(!store.hasPasscode)
     }
 
     @Test func setupOverflowStaysInEntry() async {
         let (coordinator, _) = makeSetupCoordinator()
-        await coordinator.commit(sequence: Array(repeating: .d7, count: 32), overflowed: true)
+        await coordinator.commit(tokens: Array(repeating: "D7", count: 32), overflowed: true)
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.banner?.primary == LockCopy.setupTooLong)
+        #expect(coordinator.caption?.primary == .tooLong)
     }
 
     @Test func setupValidGoesToConfirm() async {
         let (coordinator, _) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .d3, .d4], overflowed: false)
-        #expect(coordinator.state == .firstRunSetup(.confirm(pending: [.d1, .d2, .d3, .d4])))
-        #expect(coordinator.banner?.primary == LockCopy.setupConfirmBanner)
-        #expect(coordinator.banner?.secondary == nil)
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(coordinator.state == .firstRunSetup(.confirm(pending: ["D1", "D2", "D3", "D4"])))
+        #expect(coordinator.caption?.primary == .promptConfirmSetup)
+        #expect(coordinator.caption?.secondary == nil)
+        #expect(coordinator.surfaceMode == .confirmNew)
     }
 
     @Test func trivialSequenceShowsSoftWarning() async {
         let (coordinator, _) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d7, .d7, .d7, .d7], overflowed: false)
-        #expect(coordinator.banner?.secondary == LockCopy.setupTrivialWarning)
+        await coordinator.commit(tokens: ["D7", "D7", "D7", "D7"], overflowed: false)
+        #expect(coordinator.caption?.secondary == .trivialWarning)
     }
 
     @Test func confirmMismatchReturnsToEntry() async {
         let (coordinator, store) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .d3, .d4], overflowed: false)
-        await coordinator.commit(sequence: [.d1, .d2, .d3, .d5], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D5"], overflowed: false)
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.banner?.primary == LockCopy.setupMismatch)
+        #expect(coordinator.caption?.primary == .mismatch)
         #expect(!store.hasPasscode)
     }
 
     @Test func confirmMatchStoresAndUnlocks() async {
         let (coordinator, store) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         #expect(coordinator.state == .unlocked)
         #expect(coordinator.showNoRecoveryNotice)
-        #expect(store.stored == [.d1, .d2, .add, .d3, .d4])
-        #expect(coordinator.banner == nil)
+        #expect(store.stored == ["D1", "D2", "ADD", "D3", "D4"])
+        #expect(coordinator.caption == nil)
     }
 
     @Test func backgroundingMidSetupDiscardsBuffers() async {
         let (coordinator, _) = makeSetupCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .d3, .d4], overflowed: false)
-        let epochBefore = coordinator.calculatorEpoch
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        let epochBefore = coordinator.disguiseEpoch
         coordinator.sceneDidEnterBackground()
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.calculatorEpoch > epochBefore)
+        #expect(coordinator.disguiseEpoch > epochBefore)
     }
 
     // MARK: - Locked
@@ -93,25 +96,26 @@ struct AppLockCoordinatorTests {
     @Test func existingPasscodeBootsLocked() async {
         let (coordinator, _) = await makeLockedCoordinator()
         #expect(coordinator.state == .locked)
-        #expect(coordinator.banner == nil)
+        #expect(coordinator.caption == nil)
+        #expect(coordinator.surfaceMode == .disguise)
     }
 
     @Test func correctSequenceUnlocks() async {
         let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         #expect(coordinator.state == .unlocked)
     }
 
     @Test func wrongSequenceStaysLockedSilently() async {
         let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d9, .d9, .d9, .d9], overflowed: false)
+        await coordinator.commit(tokens: ["D9", "D9", "D9", "D9"], overflowed: false)
         #expect(coordinator.state == .locked)
-        #expect(coordinator.banner == nil)
+        #expect(coordinator.caption == nil)
     }
 
     @Test func subMinimumCommitSkipsCompare() async {
         let (coordinator, store) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2"], overflowed: false)
         #expect(coordinator.state == .locked)
         #expect(store.matchesCallCount == 0) // no Keychain read, no KDF
     }
@@ -119,33 +123,180 @@ struct AppLockCoordinatorTests {
     @Test func overflowedCommitNeverMatches() async {
         let (coordinator, store) = await makeLockedCoordinator()
         // Even the correct sequence with the overflow flag set is skipped.
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: true)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: true)
         #expect(coordinator.state == .locked)
         #expect(store.matchesCallCount == 0)
+    }
+
+    // MARK: - The §1.1 pulse matrix, in `disguise` mode
+
+    @Test func covertFaceIsNeverPulsedInDisguiseMode() async {
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "calculator")
+        await coordinator.commit(tokens: ["D9", "D9", "D9", "D9"], overflowed: false)
+        await coordinator.commit(tokens: ["D1"], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: true)
+        #expect(coordinator.failedAttemptCount == 0)
+    }
+
+    @Test func overtFaceIsPulsedOnEveryNonAcceptedCommit() async {
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "numpad")
+        await coordinator.commit(tokens: ["D9", "D9", "D9", "D9"], overflowed: false)
+        #expect(coordinator.failedAttemptCount == 1)
+        await coordinator.commit(tokens: ["D1"], overflowed: false) // too short
+        #expect(coordinator.failedAttemptCount == 2)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: true)
+        #expect(coordinator.failedAttemptCount == 3)
+    }
+
+    @Test func overtShortAndOverflowedCommitsStillSkipTheKDF() async {
+        let (coordinator, store) = await makeLockedCoordinator(disguiseId: "pattern")
+        await coordinator.commit(tokens: ["N1"], overflowed: false)
+        await coordinator.commit(tokens: ["N1", "N2", "N3", "N4"], overflowed: true)
+        #expect(store.matchesCallCount == 0)
+        #expect(coordinator.failedAttemptCount == 2)
+    }
+
+    @Test func aSuccessfulUnlockResetsThePulse() async {
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "numpad")
+        await coordinator.commit(tokens: ["D9", "D9", "D9", "D9"], overflowed: false)
+        #expect(coordinator.failedAttemptCount == 1)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        #expect(coordinator.state == .unlocked)
+        #expect(coordinator.failedAttemptCount == 0)
+    }
+
+    @Test func captureModesNeverPulse() async {
+        let store = InMemoryPasscodeStore()
+        let coordinator = AppLockCoordinator(passcodeStore: store)
+        coordinator.pendingDisguiseId = "numpad" // overt
+        await coordinator.commit(tokens: ["D1"], overflowed: false)             // too short
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: true) // too long
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        await coordinator.commit(tokens: ["D9", "D9", "D9", "D9"], overflowed: false) // mismatch
+        #expect(coordinator.failedAttemptCount == 0)
+    }
+
+    // MARK: - Face resolution (§4, §E)
+
+    @Test func theEnrolledFaceIsResolvedAtInit() async {
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "pattern")
+        #expect(coordinator.activeDisguise.id == "pattern")
+        #expect(coordinator.surfaceDisguise.id == "pattern")
+    }
+
+    @Test func anUnknownEnrolledFaceFallsBackToTheCalculator() async {
+        let store = SpyPasscodeStore()
+        await store.seed(["D1", "D2", "D3", "D4"], activeDisguiseId: "tip-calculator")
+        let coordinator = AppLockCoordinator(passcodeStore: store)
+        #expect(coordinator.activeDisguise.id == "calculator")
+        #expect(coordinator.surfaceMode == .disguise)
+    }
+
+    @Test func lockingDoesNotReResolveTheFace() async {
+        let (coordinator, store) = await makeLockedCoordinator(disguiseId: "numpad")
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        // A device-locked Keychain reads as absent; the face must not flip.
+        store.clear()
+        coordinator.lock()
+        coordinator.sceneDidEnterBackground()
+        #expect(coordinator.activeDisguise.id == "numpad")
+    }
+
+    @Test func setupRendersThePendingFace() {
+        let (coordinator, _) = makeSetupCoordinator()
+        #expect(coordinator.surfaceDisguise.id == "calculator")
+        coordinator.pendingDisguiseId = "pattern"
+        #expect(coordinator.surfaceDisguise.id == "pattern")
+    }
+
+    @Test func aFaceIdentityChangeRebuildsTheSurface() {
+        let (coordinator, _) = makeSetupCoordinator()
+        let before = coordinator.surfaceIdentity
+        coordinator.pendingDisguiseId = "numpad"
+        #expect(coordinator.surfaceIdentity != before)
+    }
+
+    @Test func aPhaseChangeWithinSetupKeepsTheSurface() async {
+        let (coordinator, _) = makeSetupCoordinator()
+        let before = coordinator.surfaceIdentity
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(coordinator.surfaceMode == .confirmNew)
+        #expect(coordinator.surfaceIdentity == before)
+    }
+
+    @Test func setupStoresTheChosenFacesAlphabetAndId() async {
+        let store = InMemoryPasscodeStore()
+        let coordinator = AppLockCoordinator(passcodeStore: store)
+        coordinator.completeOnboarding(selectedDisguiseId: "pattern")
+        await coordinator.commit(tokens: ["N0", "N1", "N2", "N5"], overflowed: false)
+        await coordinator.commit(tokens: ["N0", "N1", "N2", "N5"], overflowed: false)
+        #expect(coordinator.state == .unlocked)
+        #expect(store.storedDisguiseId == "pattern")
+        #expect(store.storedAlphabet?.tokenSetId == "pattern")
+        #expect(coordinator.activeDisguise.id == "pattern")
+    }
+
+    @Test func reloadPicksUpASwitchedFace() async {
+        let (coordinator, store) = await makeLockedCoordinator(disguiseId: "calculator")
+        await store.seed(["D1", "D2", "D3", "D4"],
+                         alphabet: NumpadDisguise().alphabet, activeDisguiseId: "numpad")
+        let epochBefore = coordinator.disguiseEpoch
+        coordinator.reloadActiveDisguise()
+        #expect(coordinator.activeDisguise.id == "numpad")
+        #expect(coordinator.disguiseEpoch > epochBefore)
+    }
+
+    // MARK: - Setup-complete hook (§4)
+
+    @Test func theSetupHookFiresOnlyWithTheFirstEnvelope() async {
+        let store = InMemoryPasscodeStore()
+        let coordinator = AppLockCoordinator(passcodeStore: store)
+        var completions = 0
+        coordinator.onSetupComplete = { completions += 1 }
+
+        coordinator.completeOnboarding(selectedDisguiseId: "numpad")
+        #expect(completions == 0) // finishing the guide writes nothing
+
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(completions == 0) // still only pending
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(completions == 1)
+    }
+
+    @Test func aFailedFirstWriteDoesNotFireTheSetupHook() async {
+        let store = InMemoryPasscodeStore()
+        store.failNextSet = true
+        let coordinator = AppLockCoordinator(passcodeStore: store)
+        var completions = 0
+        coordinator.onSetupComplete = { completions += 1 }
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "D3", "D4"], overflowed: false)
+        #expect(completions == 0)
+        #expect(coordinator.state == .firstRunSetup(.enterNew))
     }
 
     // MARK: - Re-lock model
 
     @Test func backgroundingWhileUnlockedLocksImmediately() async {
         let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.sceneDidEnterBackground()
         #expect(coordinator.state == .locked)
     }
 
-    @Test func manualLockClearsCalculator() async {
+    @Test func manualLockClearsTheFace() async {
         let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
-        let epochBefore = coordinator.calculatorEpoch
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        let epochBefore = coordinator.disguiseEpoch
         coordinator.lock()
         #expect(coordinator.state == .locked)
-        #expect(coordinator.calculatorEpoch > epochBefore)
+        #expect(coordinator.disguiseEpoch > epochBefore)
     }
 
     @Test func pickerSuppressionWithinCapStaysUnlocked() async {
         let clock = FakeClock()
         let (coordinator, _) = await makeLockedCoordinator(clock: clock)
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.systemUIWillPresent()
         coordinator.sceneDidEnterBackground()
         #expect(coordinator.state == .unlocked)
@@ -157,7 +308,7 @@ struct AppLockCoordinatorTests {
     @Test func pickerSuppressionBeyondCapLocks() async {
         let clock = FakeClock()
         let (coordinator, _) = await makeLockedCoordinator(clock: clock)
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.systemUIWillPresent()
         coordinator.sceneDidEnterBackground()
         clock.now += AppLockCoordinator.suppressionCap + 1
@@ -168,7 +319,7 @@ struct AppLockCoordinatorTests {
     @Test func monotonicInconsistencyFailsClosed() async {
         let clock = FakeClock()
         let (coordinator, _) = await makeLockedCoordinator(clock: clock)
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.systemUIWillPresent()
         coordinator.sceneDidEnterBackground()
         clock.now -= 100 // clock went backwards (reboot) → lock
@@ -178,7 +329,7 @@ struct AppLockCoordinatorTests {
 
     @Test func backgroundingWithoutSuppressionLocksEvenWithPickerFlagCleared() async {
         let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.systemUIWillPresent()
         coordinator.systemUIDidDismiss()
         coordinator.sceneDidEnterBackground()
@@ -193,12 +344,13 @@ struct AppLockCoordinatorTests {
         #expect(coordinator.showOnboarding)
         coordinator.completeOnboarding()
         #expect(!coordinator.showOnboarding)
+        #expect(coordinator.pendingDisguiseId == "calculator")
     }
 
     @Test func onboardingNeverShowsOncePasscodeExists() async {
         // Even with the flag unset (upgrade path), an existing vault means no explainer.
         let store = SpyPasscodeStore()
-        await store.seed([.d1, .d2, .add, .d3, .d4])
+        await store.seed(["D1", "D2", "ADD", "D3", "D4"])
         let coordinator = AppLockCoordinator(passcodeStore: store, onboardingComplete: false)
         #expect(!coordinator.showOnboarding)
     }
@@ -209,29 +361,32 @@ struct AppLockCoordinatorTests {
     }
 
     @Test func resetReturnsToFirstRunState() async {
-        let (coordinator, _) = await makeLockedCoordinator()
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
-        let epochBefore = coordinator.calculatorEpoch
+        let (coordinator, _) = await makeLockedCoordinator(disguiseId: "pattern")
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
+        let epochBefore = coordinator.disguiseEpoch
         coordinator.reset()
         #expect(coordinator.state == .firstRunSetup(.enterNew))
-        #expect(coordinator.banner?.primary == LockCopy.setupEntryBanner)
+        #expect(coordinator.caption?.primary == .promptNewSetup)
         #expect(coordinator.showOnboarding)
         #expect(!coordinator.showNoRecoveryNotice)
-        #expect(coordinator.calculatorEpoch > epochBefore)
+        #expect(coordinator.disguiseEpoch > epochBefore)
         #expect(!coordinator.systemUIInFlight)
+        // Post-erase the app is back on the default face.
+        #expect(coordinator.pendingDisguiseId == "calculator")
+        #expect(coordinator.activeDisguise.id == "calculator")
     }
 
     @Test func resetClearsPickerSuppression() async {
         let clock = FakeClock()
         let (coordinator, _) = await makeLockedCoordinator(clock: clock)
-        await coordinator.commit(sequence: [.d1, .d2, .add, .d3, .d4], overflowed: false)
+        await coordinator.commit(tokens: ["D1", "D2", "ADD", "D3", "D4"], overflowed: false)
         coordinator.systemUIWillPresent()
         coordinator.sceneDidEnterBackground() // suppressed backgrounding pending
         coordinator.reset()
         // A vault set up after the reset must not inherit the old suppression
         // window: the next backgrounding locks immediately.
-        await coordinator.commit(sequence: [.d5, .d6, .add, .d7], overflowed: false)
-        await coordinator.commit(sequence: [.d5, .d6, .add, .d7], overflowed: false)
+        await coordinator.commit(tokens: ["D5", "D6", "ADD", "D7"], overflowed: false)
+        await coordinator.commit(tokens: ["D5", "D6", "ADD", "D7"], overflowed: false)
         #expect(coordinator.state == .unlocked)
         coordinator.sceneDidEnterBackground()
         #expect(coordinator.state == .locked)

@@ -37,27 +37,28 @@ struct RootView: View {
             ZStack {
                 switch displayedState {
                 case .firstRunSetup:
-                    // First run (and post-erase): the guide runs before the
-                    // calculator ever appears. Only while NO passcode exists — the
+                    // First run (and post-erase): the guide runs before any
+                    // lock face appears. Only while NO passcode exists — the
                     // disguise is never preceded by an explainer once a vault is
-                    // set up.
+                    // set up. The persisted sentinel is written with the first
+                    // envelope, not here (decisions §4).
                     if coordinator.showOnboarding {
-                        OnboardingView(mode: .firstRun, onFinish: {
-                            coordinator.completeOnboarding()
-                            OnboardingSentinel.recordCompletion(for: .firstRun)
-                        })
+                        OnboardingView(mode: .firstRun, registry: coordinator.registry) { selectedId in
+                            coordinator.completeOnboarding(selectedDisguiseId: selectedId)
+                        }
                     } else {
-                        LockCalculatorView(coordinator: coordinator)
-                            .id(coordinator.calculatorEpoch)
-                            .transition(UnlockReveal.calculatorTransition)
+                        LockFaceView(coordinator: coordinator)
+                            .id(coordinator.surfaceIdentity)
+                            .transition(UnlockReveal.lockFaceTransition)
                     }
                 case .locked:
-                    // .id(epoch): every lock transition recreates a pristine
-                    // calculator (display and recorder buffer cleared). The epoch
-                    // change arrives in a plain transaction, so the swap is a cut.
-                    LockCalculatorView(coordinator: coordinator)
-                        .id(coordinator.calculatorEpoch)
-                        .transition(UnlockReveal.calculatorTransition)
+                    // .id(surfaceIdentity): every lock transition — and every
+                    // face-identity change — recreates a pristine face (entry
+                    // and recorder buffer cleared). The change arrives in a
+                    // plain transaction, so the swap is a cut.
+                    LockFaceView(coordinator: coordinator)
+                        .id(coordinator.surfaceIdentity)
+                        .transition(UnlockReveal.lockFaceTransition)
                 case .unlocked:
                     // zIndex(1): the vault reveals OVER the fading calculator.
                     MainTabView(container: container)
@@ -66,7 +67,7 @@ struct RootView: View {
                 }
             }
             if showCover {
-                CalculatorCoverView()
+                DisguiseCoverView(disguise: coordinator.surfaceDisguise)
                     .zIndex(10)
             }
         }

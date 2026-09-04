@@ -39,9 +39,14 @@ final class SnapshotCover {
     static let shared = SnapshotCover()
 
     private var window: UIWindow?
+    private var host: UIHostingController<AnyView>?
     /// Pinned by `SnapshotCoverSceneHook` once the root view is in a window.
     /// Falls back to the app's connected scenes (single-scene app).
     private weak var scene: UIWindowScene?
+
+    /// Supplies the ACTIVE face's cover, wired in `AppContainer.live()`. Until
+    /// it is set (previews, tests) the cover is a plain themed background.
+    var coverFaceProvider: (@MainActor () -> AnyView)?
 
     private init() {}
 
@@ -57,6 +62,9 @@ final class SnapshotCover {
         if covered {
             guard let scene = resolveScene() else { return }
             let window = window(in: scene)
+            // Re-read the face every time: the active disguise may have
+            // changed since the window was created.
+            host?.rootView = coverFace()
             window.isHidden = false
         } else {
             window?.isHidden = true
@@ -90,13 +98,18 @@ final class SnapshotCover {
         cover.backgroundColor = Self.coverBackground
         cover.accessibilityViewIsModal = false
 
-        let host = UIHostingController(rootView: CalculatorCoverView())
-        host.view.backgroundColor = Self.coverBackground
-        host.view.isUserInteractionEnabled = false
-        cover.rootViewController = host
+        let controller = UIHostingController(rootView: coverFace())
+        controller.view.backgroundColor = Self.coverBackground
+        controller.view.isUserInteractionEnabled = false
+        cover.rootViewController = controller
 
+        host = controller
         window = cover
         return cover
+    }
+
+    private func coverFace() -> AnyView {
+        coverFaceProvider?() ?? AnyView(Color(Self.coverBackground).ignoresSafeArea())
     }
 
     /// Same graphite/grey as `CalculatorSurface`'s background, resolved per

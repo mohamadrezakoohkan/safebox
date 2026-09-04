@@ -21,33 +21,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.calcplus.calculator.R
-import com.calcplus.calculator.core.lock.BannerText
+import com.calcplus.calculator.core.disguise.DisguiseMode
+import com.calcplus.calculator.core.disguise.DisguiseSurfaceHost
 import com.calcplus.calculator.core.lock.LockState
+import com.calcplus.calculator.core.lock.SetupPhase
 import com.calcplus.calculator.di.AppContainer
-import com.calcplus.calculator.feature.calculator.CalculatorScreen
-import com.calcplus.calculator.feature.calculator.CalculatorSession
-import com.calcplus.calculator.feature.calculator.CaptionState
 import com.calcplus.calculator.feature.onboarding.OnboardingMode
 import com.calcplus.calculator.feature.onboarding.OnboardingScreen
 import com.calcplus.calculator.feature.onboarding.recordOnboardingCompletion
 import kotlinx.coroutines.launch
-
-@Composable
-fun bannerString(text: BannerText): String = stringResource(
-    when (text) {
-        BannerText.SETUP_ENTRY -> R.string.setup_entry_banner
-        BannerText.SETUP_HINT -> R.string.setup_entry_hint
-        BannerText.SETUP_TOO_SHORT -> R.string.setup_too_short
-        BannerText.SETUP_TOO_LONG -> R.string.setup_too_long
-        BannerText.SETUP_CONFIRM -> R.string.setup_confirm_banner
-        BannerText.SETUP_MISMATCH -> R.string.setup_mismatch
-        BannerText.SETUP_TRIVIAL_WARNING -> R.string.setup_trivial_warning
-        BannerText.VERIFY_CURRENT -> R.string.verify_current_caption
-        BannerText.VERIFY_ERROR -> R.string.verify_error
-        BannerText.CHANGE_ENTER_NEW -> R.string.change_enter_new_caption
-        BannerText.CHANGE_CONFIRM -> R.string.change_confirm_caption
-    }
-)
 
 /**
  * Root composable: app lock is root-level state, above navigation. The locked
@@ -118,30 +100,31 @@ fun SafeBoxApp(container: AppContainer) {
         ) {
             when (state) {
                 LockState.NeedsSetup ->
-                    // First run (and post-erase): the guide runs before the
-                    // calculator ever appears. Only while NO passcode exists —
+                    // First run (and post-erase): the guide runs before any
+                    // lock face ever appears. Only while NO passcode exists —
                     // the disguise is never preceded by an explainer once a
                     // vault is set up.
                     if (showOnboarding) {
                         OnboardingScreen(
                             mode = OnboardingMode.FIRST_RUN,
-                            onFinish = {
+                            registry = container.disguiseRegistry,
+                            currentFace = container.disguiseRegistry.default,
+                            onFinish = { selectedId ->
                                 // The mode-gated single writer: flips the
-                                // in-memory flag now and persists in the
-                                // lock-surviving scope (the composable is
-                                // disposed the moment the switch flips).
+                                // in-memory flag and records the chosen face.
+                                // The PERSISTED sentinel lands with the first
+                                // envelope instead (decisions §4).
                                 recordOnboardingCompletion(
                                     mode = OnboardingMode.FIRST_RUN,
                                     lockManager = lockManager,
-                                    onboardingStore = container.onboardingStore,
-                                    scope = container.applicationScope,
+                                    selectedDisguiseId = selectedId,
                                 )
                             },
                         )
                     } else {
-                        LockCalculator(container, exiting = exiting)
+                        LockSurface(container, state, exiting = exiting)
                     }
-                LockState.Locked -> LockCalculator(container, exiting = exiting)
+                LockState.Locked -> LockSurface(container, state, exiting = exiting)
                 LockState.Unlocked -> VaultScaffold(container)
             }
             // An outgoing surface is inert: a tap during the reveal (or the
@@ -174,49 +157,67 @@ fun SafeBoxApp(container: AppContainer) {
     }
 }
 
+/**
+ * The lock screen: whichever face the owner enrolled, in `disguise` mode — or
+ * the face they picked in the guide, in the two capture modes of first-run
+ * setup. The host owns the recorder and the state machine; the face renders
+ * and emits.
+ */
 @Composable
-private fun LockCalculator(container: AppContainer, exiting: Boolean) {
+private fun LockSurface(container: AppContainer, state: LockState, exiting: Boolean) {
     val lockManager = container.lockManager
-    val liveBanner by lockManager.banner.collectAsStateWithLifecycle()
-    val liveEpoch by lockManager.calculatorEpoch.collectAsStateWithLifecycle()
-    // The reveal fades the calculator out "in place", but the unlock commit
-    // bumps calculatorEpoch — and a setup confirm clears the banner — in the
-    // same step. An exiting calculator therefore holds its last frame instead
-    // of repainting to a pristine "0" mid-fade. Should the target flip back
-    // before the exit completes (a lock during the reveal), the surface is
-    // reused as the target, unfreezes, and the bumped epoch recreates it
-    // pristine exactly as before.
+    val liveCaption by lockManager.caption.collectAsStateWithLifecycle()
+    val liveEpoch by lockManager.surfaceEpoch.collectAsStateWithLifecycle()
+    val liveActive by lockManager.activeDisguise.collectAsStateWithLifecycle()
+    val livePending by lockManager.pendingDisguiseId.collectAsStateWithLifecycle()
+    val failedAttemptToken by lockManager.failedAttemptToken.collectAsStateWithLifecycle()
+    val setupPhase by lockManager.setupPhase.collectAsStateWithLifecycle()
+    val liveFace = when (state) {
+        LockState.NeedsSetup -> container.disguiseRegistry.resolve(livePending)
+        else -> liveActive
+    }
+    // The reveal fades the lock face out "in place", but the unlock commit
+    // bumps surfaceEpoch — and can swap the active face, and a setup confirm
+    // clears the caption — in the same step. An exiting face therefore holds
+    // its last frame instead of repainting pristine mid-fade. Should the target
+    // flip back before the exit completes (a lock during the reveal), the
+    // surface is reused as the target, unfreezes, and the bumped epoch
+    // recreates it pristine exactly as before.
     //
     // The freeze is only correct because AppLockManager writes the side flows
     // and the lock state without a suspension point between them: `commit`
-    // sets `_lockState = Unlocked` then `_calculatorEpoch += 1`, and the setup
-    // confirm sets `_banner = null` … `_lockState = Unlocked` back to back.
+    // does every suspending read (matches, activeDisguiseId) FIRST, then sets
+    // `_activeDisguise`, `_lockState = Unlocked` and `_surfaceEpoch += 1` back
+    // to back; the setup confirm likewise stores the envelope first and then
+    // writes `_activeDisguise` … `_caption = null` … `_lockState = Unlocked`.
     // `exiting` (derived from the lock state) therefore flips in the same
-    // composition that would otherwise show the new epoch / cleared banner.
-    // A suspension between those writes would let the pristine values land
-    // one composition before the freeze engages, and the caption would blink.
+    // composition that would otherwise show the new epoch, the new face or the
+    // cleared caption. A suspension between those writes would let the pristine
+    // values land one composition before the freeze engages, and the caption —
+    // or now the whole face — would blink.
     val epoch = rememberFrozenWhile(exiting, liveEpoch)
-    val banner = rememberFrozenWhile(exiting, liveBanner)
+    val caption = rememberFrozenWhile(exiting, liveCaption)
+    val face = rememberFrozenWhile(exiting, liveFace)
     val scope = rememberCoroutineScope()
 
-    // key(epoch): every lock transition recreates a pristine calculator
-    // (display and recorder buffer cleared).
-    key(epoch) {
-        val session = remember {
-            CalculatorSession(
-                onCommit = { keys, overflowed ->
-                    // Verification runs off the UI path; the display rendered already.
-                    scope.launch { lockManager.commit(keys, overflowed) }
-                },
-            )
-        }
-        CalculatorScreen(
-            session = session,
-            caption = banner?.let { b ->
-                CaptionState(
-                    primary = bannerString(b.primary),
-                    secondary = b.secondary?.let { bannerString(it) },
-                )
+    // key(epoch, face.id): every lock transition — and every face change —
+    // recreates a pristine surface with an empty recorder buffer.
+    key(epoch, face.id) {
+        DisguiseSurfaceHost(
+            face = face,
+            // A phase change WITHIN setup is not a re-instantiation (§1.5):
+            // the key above does not include the mode, so the face keeps its
+            // display across captureNew → confirmNew, exactly as before.
+            mode = when {
+                state != LockState.NeedsSetup -> DisguiseMode.DISGUISE
+                setupPhase is SetupPhase.Confirm -> DisguiseMode.CONFIRM_NEW
+                else -> DisguiseMode.CAPTURE_NEW
+            },
+            caption = caption,
+            failedAttemptToken = failedAttemptToken,
+            onCommit = { tokens, overflowed ->
+                // Verification runs off the UI path; the face rendered already.
+                scope.launch { lockManager.commit(tokens, overflowed) }
             },
         )
     }

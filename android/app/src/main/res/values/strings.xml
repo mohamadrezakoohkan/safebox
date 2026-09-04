@@ -36,8 +36,6 @@
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_start">Set my code</string>
-    <string name="onboarding_page1_title">Looks like a calculator</string>
-    <string name="onboarding_page1_body">Calculator+ is a fully working calculator on the surface. Anyone who opens it sees exactly that — and nothing else.</string>
     <string name="onboarding_page2_title">Secretly, it\'s your vault</string>
     <string name="onboarding_page2_body">Everything stays on this device. No account, no cloud, no sync.</string>
     <string name="onboarding_page2_photos">Photos</string>
@@ -46,14 +44,82 @@
     <string name="onboarding_page2_notes_sub">Rich text with tags and live preview</string>
     <string name="onboarding_page2_contacts">Contacts</string>
     <string name="onboarding_page2_contacts_sub">People only you know about</string>
-    <string name="onboarding_page3_title">Your code is a key sequence</string>
-    <string name="onboarding_page3_body">Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved.</string>
-    <string name="onboarding_page3_try">Tap at least 4 keys</string>
-    <string name="onboarding_page3_ok">That would work — symbols make it stronger</string>
     <string name="onboarding_page3_clear">Reset</string>
-    <string name="onboarding_page4_title">Press = to enter</string>
-    <string name="onboarding_page4_body">To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden.</string>
     <string name="onboarding_page4_warning">There is no recovery. If you forget your code, the vault stays locked forever.</string>
+
+    <!-- Iteration 3 shared string table (iteration-3-decisions §7) — IDs identical on iOS. -->
+
+    <!-- Guide page 1: the disguise carousel (replaces onboarding_page1_*). -->
+    <string name="onboarding_disguise_title">Pick a disguise</string>
+    <string name="onboarding_disguise_body">Anyone who opens Calculator+ sees only this screen. You can change it later in Settings.</string>
+    <string name="onboarding_disguise_revisit_hint">This is your current disguise. You can change it in Settings → Change disguise.</string>
+    <string name="disguise_identity_disclosure">On your home screen the app is always called Calculator+ and keeps its calculator icon. Only the screen shown while locked changes — so a Calculator+ that opens to a PIN pad or a pattern is itself a hint that something is hidden.</string>
+    <string name="disguise_grade_native">Matches the app\'s name and icon</string>
+    <string name="disguise_grade_incoherent">Doesn\'t match the app\'s name and icon</string>
+    <string name="disguise_current_badge">Current</string>
+
+    <!-- Calculator face: identity + guide (copy verbatim from onboarding_page3/4_*). -->
+    <string name="calculator_display_name">Calculator</string>
+    <string name="calculator_tagline">A fully working calculator. A wrong code just calculates — no error, no hint.</string>
+    <string name="calculator_commit_gesture">the = key</string>
+    <string name="calculator_guide_page3_title">Your code is a key sequence</string>
+    <string name="calculator_guide_page3_body">Pick 4 to 32 calculator keys — digits and symbols all count, and order matters. Try one here. This is just practice; nothing is saved.</string>
+    <string name="calculator_guide_try">Tap at least 4 keys</string>
+    <string name="calculator_guide_ok">That would work — symbols make it stronger</string>
+    <string name="calculator_guide_page4_title">Press = to enter</string>
+    <string name="calculator_guide_page4_body">To unlock, type your code on the calculator and press =. A wrong code just calculates — no error, no hint that anything is hidden.</string>
+
+    <!-- PIN pad face -->
+    <string name="numpad_display_name">PIN pad</string>
+    <string name="numpad_tagline">A plain PIN screen. A wrong PIN shakes and clears, like a phone lock.</string>
+    <string name="numpad_commit_gesture">the ✓ key</string>
+    <string name="numpad_guide_page3_title">Your PIN is 4 to 32 digits</string>
+    <string name="numpad_guide_page3_body">Any digits, any length from 4 to 32 — order matters. Try one here. This is just practice; nothing is saved.</string>
+    <string name="numpad_guide_try">Tap at least 4 digits</string>
+    <string name="numpad_guide_ok">That would work — more digits make it stronger</string>
+    <string name="numpad_guide_page4_title">Tap ✓ to enter</string>
+    <string name="numpad_guide_page4_body">To unlock, enter your PIN and tap ✓. A wrong PIN shakes and clears — anyone can see it\'s a lock screen, but not what it protects.</string>
+    <string name="numpad_face_title">Enter PIN</string>
+    <string name="numpad_prompt_new">Choose a PIN: enter 4 to 32 digits, then tap ✓</string>
+    <string name="numpad_prompt_new_change">Enter your new PIN, then tap ✓</string>
+    <string name="numpad_hint">Best: 6 or more digits — not a date, not a repeat.</string>
+    <string name="numpad_too_short">Too short — use at least 4 digits</string>
+    <string name="numpad_too_long">Too long — start again (max 32 digits)</string>
+    <string name="numpad_prompt_confirm">Re-enter the same PIN, then tap ✓</string>
+    <string name="numpad_prompt_confirm_change">Re-enter the new PIN, then tap ✓</string>
+    <string name="numpad_mismatch">PINs didn\'t match — start again</string>
+    <string name="numpad_trivial_warning">Easy to guess — re-enter it to keep it anyway, or enter a different PIN to start over.</string>
+    <string name="numpad_prompt_current">Enter your current PIN, then tap ✓</string>
+    <string name="numpad_wrong_code">Incorrect PIN — try again</string>
+
+    <!-- Pattern face -->
+    <string name="pattern_display_name">Pattern</string>
+    <string name="pattern_tagline">Connect the dots in one stroke. A wrong pattern shakes and clears, like an Android lock.</string>
+    <string name="pattern_commit_gesture">a finger lift</string>
+    <string name="pattern_a11y_note">Not usable with a screen reader</string>
+    <string name="pattern_guide_page3_title">Your pattern connects the dots</string>
+    <string name="pattern_guide_page3_body">Draw one stroke through 4 to 9 dots — each dot once, and the path matters. Try one here. This is just practice; nothing is saved.</string>
+    <string name="pattern_guide_try">Connect at least 4 dots</string>
+    <string name="pattern_guide_ok">That would work — more dots and turns make it stronger</string>
+    <string name="pattern_guide_page4_title">Lift your finger to enter</string>
+    <string name="pattern_guide_page4_body">To unlock, draw your pattern and lift your finger. A wrong pattern shakes and clears — anyone can see it\'s a lock screen, but not what it protects.</string>
+    <string name="pattern_face_title">Draw your pattern</string>
+    <string name="pattern_prompt_new">Choose a pattern: connect at least 4 dots, then lift your finger</string>
+    <string name="pattern_prompt_new_change">Draw your new pattern, then lift your finger</string>
+    <string name="pattern_hint">Best: 6 or more dots with a turn or two — not a straight line or a letter.</string>
+    <string name="pattern_too_short">Too short — connect at least 4 dots</string>
+    <string name="pattern_prompt_confirm">Draw the same pattern again</string>
+    <string name="pattern_prompt_confirm_change">Draw the new pattern again</string>
+    <string name="pattern_mismatch">Patterns didn\'t match — start again</string>
+    <string name="pattern_prompt_current">Draw your current pattern</string>
+    <string name="pattern_wrong_code">Wrong pattern — try again</string>
+
+    <!-- Settings row + switch flow -->
+    <string name="settings_change_disguise_title">Change disguise</string>
+    <string name="disguise_pick_action">Use this disguise</string>
+    <string name="disguise_switch_explainer">Your current code belongs to the %1$s disguise and is confirmed with %2$s. The new disguise needs a new code, set on its own keys. Your photos, notes, and contacts are unchanged.</string>
+    <string name="disguise_switch_success_title">Disguise changed</string>
+    <string name="disguise_switch_success_body">Your new code works from now on. There is no way to recover it — if you forget it, your vault contents cannot be retrieved.</string>
 
     <!-- Iteration 2 shared string table (iteration-2-decisions §10) — IDs identical on iOS (Localizable.xcstrings / VaultCopy). -->
 

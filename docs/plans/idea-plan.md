@@ -1,14 +1,14 @@
 # SafeBox — Idea Plan (Product Plan)
 
 **Document:** `docs/plans/idea-plan.md`
-**Status:** Product source of truth. Iterations 1 and 2 have both shipped on iOS and Android, and this document describes the app as it now behaves; `docs/plans/iteration-2-decisions.md` holds the per-item iteration-2 decisions and wins on any detail this document leaves ambiguous. The platform plans must implement this document exactly; where they diverge for platform reasons, they must say so explicitly and link back to the section they diverge from.
+**Status:** Product source of truth. Iterations 1, 2 and 3 have shipped on iOS and Android, and this document describes the app as it now behaves; `docs/plans/iteration-2-decisions.md` and `docs/plans/iteration-3-decisions.md` hold the per-item decisions for those iterations and win on any detail this document leaves ambiguous. Iteration 3 turned the calculator into one of three interchangeable **lock faces**, so read every "the calculator" in this document as "the active lock face" unless the sentence is specifically about the calculator face. The platform plans must implement this document exactly; where they diverge for platform reasons, they must say so explicitly and link back to the section they diverge from.
 **Last updated:** 2026-09
 
 ---
 
 ## 1. Concept & Positioning
 
-SafeBox is a private vault app that hides in plain sight. To anyone who opens it, it is a plain, fully working calculator; to its owner, entering a secret sequence of calculator keys unlocks a local, offline vault containing private photos, notes, and contacts. SafeBox competes not on feature count but on the credibility of its disguise and the strength of its privacy posture: nothing leaves the device, nothing hints that a vault exists, and a wrong passcode produces no error — just arithmetic.
+SafeBox is a private vault app that hides in plain sight. To anyone who opens it, it is whichever **lock face** the owner enrolled — a plain, fully working calculator by default, or since iteration 3 a PIN pad or a pattern lock; to its owner, entering the secret code on that face unlocks a local, offline vault containing private photos, notes, and contacts. SafeBox competes not on feature count but on the credibility of its disguise and the strength of its privacy posture: nothing leaves the device, and nothing hints that a vault exists. On the calculator face a wrong code produces no error at all — just arithmetic; the two overt faces trade that silence for a familiar lock-screen feel, shaking and clearing like any phone lock. See `docs/plans/iteration-3-decisions.md` for the faces and the disguise contract.
 
 ### Target users
 
@@ -107,7 +107,7 @@ Row 17 doubles as the **accidental-unlock collision example**: if the owner's pa
 
 ### 2.3 First-run setup — state machine
 
-First run is the only time the lock screen may show non-calculator UI, and even then it is minimal: a single unobtrusive banner/overlay line above the calculator. States:
+First run is the only time the lock screen may carry UI beyond the lock face itself, and even then it is minimal: a single unobtrusive caption line above the face. Since iteration 3 the face here is whichever one the owner picked in the guide's carousel, not necessarily the calculator, and the caption wording comes from that face (`iteration-3-decisions.md` §1.3, §4). States:
 
 ```
 [FRESH_INSTALL]
@@ -177,7 +177,7 @@ The app transitions `UNLOCKED → LOCKED` (calculator shown) when:
 2. **Manual lock:** a **"Lock now"** action in Settings on **both platforms** (platform plans may add an additional affordance, but Settings → Lock now is mandatory and identical).
 3. **Process death / crash / device restart:** by construction — locked is the launch default.
 
-On **every** lock transition, the calculator display state and the attempt buffer are cleared (so the resumed lock screen is a pristine calculator).
+On **every** lock transition, the lock face's display state and the attempt buffer are cleared (so the resumed lock screen is the pristine resting face of the active disguise). Since iteration 3 the display half of this rule is delivered by construction: the host tears down and freshly instantiates the face on every lock transition, so it holds for all three faces (`iteration-3-decisions.md` §1.5).
 
 Snapshot protection is a separate, always-on mechanism independent of the lock decision — see §6 (the app-switcher image must never show vault content, including during a §2.5.1 suppression window where the vault is still unlocked).
 
@@ -368,7 +368,9 @@ Two of these were built in iteration 1 but never recorded in this plan, and are 
 
 **No biometric row** — not as a toggle, not as "coming soon" (dead UI is odd product surface and pre-commits an unresolved design; see §5 for the recorded scope decision and open questions).
 
-**Layout requirement:** the grouped-list structure keeps room for future rows in the sections that now exist (Security: biometric unlock, decoy passcode, break-in alerts; Data: export/backup) and for an Appearance section (disguise themes). These appear in this plan only so both platforms leave layout room; none are built.
+**Layout requirement:** the grouped-list structure keeps room for future rows in the sections that now exist (Security: biometric unlock, decoy passcode, break-in alerts; Data: export/backup). These appear in this plan only so both platforms leave layout room; none are built.
+
+**Superseded by iteration 3:** the Appearance section reserved here for "disguise themes" was not used. Changing the lock face re-enrolls the passcode, so **Change disguise** ships as a row in the **Security** section directly under Change passcode (`iteration-3-decisions.md` §5). Per-face theming remains future work.
 
 ---
 
@@ -460,6 +462,7 @@ Validation: **at least one of firstName / lastName / organization** is required.
 | Field | Where | Iteration |
 |---|---|---|
 | passcode record `{algo, version, iterations, salt, hash}` | Keychain (iOS, ThisDeviceOnly) / Keystore-wrapped blob (Android) | 1 |
+| passcode record v2 adds `{tokenSetId, alphabetVersion, activeDisguiseId}` — the alphabet the hash was computed over, and the enrolled lock face. Face and hash live in one envelope so a disguise switch replaces both atomically; Android mirrors `activeDisguiseId` to a plain preference key for the launch read (`iteration-3-decisions.md` §3) | same | 3 |
 | decoyPasscodeHash | same | future |
 | biometricEnabled | same | future (iteration 2, with the feature) |
 
@@ -473,7 +476,7 @@ Parameters per §2.2: PBKDF2-HMAC-SHA256, 600,000 iterations, 16-byte salt, over
 | isSetupComplete (**derived, never stored as an independent flag**: passcode record present AND — on iOS — install sentinel present) | 1 |
 | albumSort (enum `manual` \| `name` \| `date_created` \| `photo_count`; default `manual`) | 2 |
 | noteSort (enum `date_modified` \| `date_created` \| `title`; default `date_modified`) | 2 |
-| disguiseTheme (enum) | future |
+| disguiseTheme (a palette per lock face; distinct from *which* face is active, which lives in the passcode envelope above) | future |
 
 Both sort preferences are **global, not per album or per tab**, stored in the platform preference store (iOS `UserDefaults`, Android DataStore), and **reset by Erase everything** — erasing returns the app to its just-installed state, and a remembered sort order is state. Raw values are the snake_case strings above, byte-identical on both platforms; an unknown or corrupt stored value falls back to the default rather than throwing.
 
@@ -505,7 +508,7 @@ The iteration-2 columns landed as **one additive migration, `v1 → v2`**, on bo
 - Interactive (tappable) note checklists — iteration 2 (§3.2).
 - Decoy passcode (second code opening a fake/secondary vault) — iteration 2+.
 - Break-in alerts / intruder selfie / failed-attempt logging — iteration 2+.
-- Alternate disguises (unit converter, clock, etc.) and disguise theming — iteration 2+. The pluggable disguise abstraction that enables this is designed (design-only) in `docs/plans/disguise-skeleton-plan.md`.
+- ~~Alternate disguises~~ — **shipped in iteration 3** as a PIN pad and a pattern lock, on the pluggable disguise contract designed in `docs/plans/disguise-skeleton-plan.md` and specified as built in `docs/plans/iteration-3-decisions.md`. Disguise *theming* (a palette per face) remains future work.
 - Import/export, sharing out of the vault, "delete original after import" — iteration 2+.
 - Cloud backup/sync of any kind — iteration 3+ at earliest, and only with end-to-end encryption.
 - System contacts import; dial/email handoff from contact detail — iteration 2+.

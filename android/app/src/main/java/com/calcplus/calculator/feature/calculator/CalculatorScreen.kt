@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -47,17 +47,21 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.calcplus.calculator.core.disguise.CaptionState
+import com.calcplus.calculator.core.disguise.DisguiseEvent
+import com.calcplus.calculator.core.disguise.rememberShakeOffset
 import com.calcplus.calculator.core.ui.theme.DisguiseTheme
 import kotlin.math.min
-import kotlin.math.sin
 
-/** Transient calculator state: engine + recorder, recreated pristine per epoch. */
+/**
+ * Transient calculator state: the arithmetic engine plus the translation from
+ * key presses to the host's [DisguiseEvent] stream. Recreated pristine per
+ * surface epoch. It owns no buffer — the host's `TokenRecorder` does.
+ */
 class CalculatorSession(
-    private val onKeyPress: () -> Unit = {},
-    private val onCommit: (keys: List<CalcKey>, overflowed: Boolean) -> Unit,
+    private val events: (DisguiseEvent) -> Unit,
 ) {
     private val engine = CalculatorEngine()
-    private val recorder = KeySequenceRecorder()
 
     var display by mutableStateOf("0")
         private set
@@ -67,16 +71,14 @@ class CalculatorSession(
         private set
 
     fun press(key: CalcKey) {
-        onKeyPress()
-        // Engine first, always — the arithmetic result renders regardless.
+        // Engine FIRST, always — the arithmetic result renders regardless of
+        // what the host makes of the event, and that is the whole disguise.
         engine.press(key)
-        if (key == CalcKey.EQUALS) {
-            val commit = recorder.takeCommit()
-            sync()
-            onCommit(commit.keys, commit.overflowed)
-        } else {
-            recorder.record(key) // CLEAR clears the buffer and overflow flag
-            sync()
+        sync()
+        when {
+            key == CalcKey.EQUALS -> events(DisguiseEvent.Commit)
+            key == CalcKey.CLEAR -> events(DisguiseEvent.Clear)
+            key.isPasscodeKey -> events(DisguiseEvent.Token(key.id))
         }
     }
 
@@ -87,22 +89,19 @@ class CalculatorSession(
     }
 }
 
-data class CaptionState(
-    val primary: String,
-    val secondary: String? = null,
-    val isError: Boolean = false,
-)
-
 /**
  * The full calculator face: caption strip + display + 4×5 keypad, laid out per
  * the disguise design spec §2.2 (height-band-driven keypad metrics). One
  * component serves the lock screen, first-run setup, and the change flow.
+ *
+ * The semantic [caption] is resolved here, through the calculator's own pinned
+ * copy ([CalculatorDisguise.captionRes]) — the host never carries strings.
  */
 @Composable
 fun CalculatorScreen(
     session: CalculatorSession,
     caption: CaptionState?,
-    shakeToken: Int = 0,
+    failedAttemptToken: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val theme = if (isSystemInDarkTheme()) DisguiseTheme.Dark else DisguiseTheme.Light
@@ -151,14 +150,14 @@ fun CalculatorScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = caption.primary,
+                            text = stringResource(CalculatorDisguise.captionRes(caption.primary)),
                             color = if (caption.isError) theme.captionError else theme.caption,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
                         )
                         caption.secondary?.let {
                             Text(
-                                text = it,
+                                text = stringResource(CalculatorDisguise.captionRes(it)),
                                 color = theme.caption,
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center,
@@ -175,7 +174,7 @@ fun CalculatorScreen(
                     contentWidth = contentWidth,
                     sideMargin = m,
                     gutter = g,
-                    shakeToken = shakeToken,
+                    failedAttemptToken = failedAttemptToken,
                 )
 
                 // Keypad block, bottom-anchored.
@@ -201,23 +200,11 @@ private fun ShakableDisplay(
     contentWidth: Dp,
     sideMargin: Dp,
     gutter: Dp,
-    shakeToken: Int,
+    failedAttemptToken: Int,
 ) {
-    // ±8dp, 3 cycles, 300ms (design spec §5.6), driven manually.
-    var phase by remember { mutableStateOf(0f) }
-    LaunchedEffect(shakeToken) {
-        if (shakeToken > 0) {
-            val start = System.nanoTime()
-            val durationMs = 300f
-            while (true) {
-                val elapsed = (System.nanoTime() - start) / 1_000_000f
-                if (elapsed >= durationMs) break
-                phase = (sin(elapsed / durationMs * Math.PI * 2 * 3) * 8).toFloat()
-                kotlinx.coroutines.delay(16)
-            }
-            phase = 0f
-        }
-    }
+    // ±8dp, 3 cycles, 300ms (design spec §5.6). The loop, the fire-on-change
+    // rule and the density conversion all live in rememberShakeOffset.
+    val shake = rememberShakeOffset(failedAttemptToken)
     val fontSize = (contentWidth.value / 5.2f).sp
     Text(
         text = text,
@@ -233,7 +220,7 @@ private fun ShakableDisplay(
         modifier = Modifier
             .width(contentWidth)
             .padding(horizontal = sideMargin, vertical = gutter)
-            .graphicsLayer { translationX = phase * 3f }
+            .graphicsLayer { translationX = shake.toPx() }
             .semantics { contentDescription = "result" },
     )
 }
@@ -354,7 +341,14 @@ private fun CalcKeyButton(
                 if (glyphCenterFraction == 0.5f) Alignment.Center else Alignment.CenterStart
             ).then(
                 if (glyphCenterFraction == 0.5f) Modifier
-                else Modifier.padding(start = width * glyphCenterFraction - 10.dp)
+                else Modifier.padding(
+                    // Clamped: Compose throws on a negative padding, and the
+                    // subtraction goes negative whenever the key is narrower
+                    // than ~20dp — which a small-but-legal render (a carousel
+                    // thumbnail) produces. A crash in the lock face is the
+                    // worst possible failure, so never let it be reachable.
+                    start = (width * glyphCenterFraction - 10.dp).coerceAtLeast(0.dp),
+                )
             ),
         )
     }

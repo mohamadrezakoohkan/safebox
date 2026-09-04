@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     container: AppContainer,
     onChangePasscode: () -> Unit,
+    onChangeDisguise: () -> Unit,
     onOpenGuide: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenTrash: () -> Unit,
@@ -82,6 +83,16 @@ fun SettingsScreen(
         ) {
             SectionLabel(stringResource(R.string.settings_section_security))
             SettingsRow(title = stringResource(R.string.settings_change_title), onClick = onChangePasscode)
+            // Change disguise sits directly under Change passcode (decisions
+            // §5): it re-enrolls the code, so it belongs beside the other
+            // passcode row — not under an Appearance section. The subtitle is
+            // the bare display name of the active face, no template.
+            val activeFace by container.lockManager.activeDisguise.collectAsStateWithLifecycle()
+            SettingsRow(
+                title = stringResource(R.string.settings_change_disguise_title),
+                subtitle = stringResource(activeFace.displayName),
+                onClick = onChangeDisguise,
+            )
             SettingsRow(title = stringResource(R.string.settings_lock_now), onClick = { container.lockManager.lock() })
 
             SectionDivider()
@@ -150,7 +161,8 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.settings_licenses_body),
             )
             // Future placeholders (decoy passcode, break-in alerts, disguise
-            // themes) are deliberately not shown.
+            // THEMES — the palette, not the face, which shipped in iteration 3
+            // as the Security row above) are deliberately not shown.
         }
     }
 

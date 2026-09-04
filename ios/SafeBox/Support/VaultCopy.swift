@@ -175,6 +175,29 @@ enum VaultCopy {
 
     static let onboardingDone = localizedCopy("onboarding_done", "Done")
 
+    // MARK: - Disguise carousel, picker and switch flow (iteration 3, §7)
+
+    static let disguiseGradeNative = localizedCopy("disguise_grade_native", "Matches the app's name and icon")
+    static let disguiseGradeIncoherent = localizedCopy("disguise_grade_incoherent", "Doesn't match the app's name and icon")
+    static let disguiseIdentityDisclosure = localizedCopy("disguise_identity_disclosure", "On your home screen the app is always called Calculator+ and keeps its calculator icon. Only the screen shown while locked changes — so a Calculator+ that opens to a PIN pad or a pattern is itself a hint that something is hidden.")
+    static let disguiseCurrentBadge = localizedCopy("disguise_current_badge", "Current")
+    static let onboardingDisguiseTitle = localizedCopy("onboarding_disguise_title", "Pick a disguise")
+    static let onboardingDisguiseBody = localizedCopy("onboarding_disguise_body", "Anyone who opens Calculator+ sees only this screen. You can change it later in Settings.")
+    static let onboardingDisguiseRevisitHint = localizedCopy("onboarding_disguise_revisit_hint", "This is your current disguise. You can change it in Settings → Change disguise.")
+    static let settingsChangeDisguiseTitle = localizedCopy("settings_change_disguise_title", "Change disguise")
+    static let disguisePickAction = localizedCopy("disguise_pick_action", "Use this disguise")
+    static let disguiseSwitchSuccessTitle = localizedCopy("disguise_switch_success_title", "Disguise changed")
+    static let disguiseSwitchSuccessBody = localizedCopy("disguise_switch_success_body", "Your new code works from now on. There is no way to recover it — if you forget it, your vault contents cannot be retrieved.")
+
+    /// The picker explainer, parameterized by the CURRENT face's display name
+    /// and commit gesture.
+    static func disguiseSwitchExplainer(currentName: String, currentGesture: String) -> String {
+        localizedCopy(
+            "disguise_switch_explainer",
+            "Your current code belongs to the \(currentName) disguise and is confirmed with \(currentGesture). The new disguise needs a new code, set on its own keys. Your photos, notes, and contacts are unchanged."
+        )
+    }
+
     // MARK: - Global search (N1)
 
     static let searchTitle = localizedCopy("search_title", "Search")

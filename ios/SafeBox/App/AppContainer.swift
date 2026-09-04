@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 /// One DI container built at launch; parents construct child view models from
 /// the dependencies they hold. No DI framework, no singletons in view models.
@@ -44,6 +45,18 @@ struct AppContainer {
         )
         coordinator.onLock = {
             Task { await fileStore.cleanTemporaryDirectory() }
+        }
+        // Decisions §4: the onboarding sentinel is written when the FIRST
+        // envelope is stored, never when the guide finishes — a process death
+        // between the two would otherwise strand the user on a face they can
+        // no longer choose.
+        coordinator.onSetupComplete = {
+            OnboardingSentinel.setComplete()
+        }
+        // The window-level snapshot cover renders the active face's own cover.
+        SnapshotCover.shared.coverFaceProvider = { [weak coordinator] in
+            guard let coordinator else { return AnyView(EmptyView()) }
+            return AnyView(DisguiseCoverView(disguise: coordinator.surfaceDisguise))
         }
         let nuker = VaultNuker(
             modelContainer: modelContainer,
@@ -116,19 +129,32 @@ struct AppContainer {
 /// In-memory fake used by previews (and mirrored in the test target).
 @MainActor
 final class InMemoryPasscodeStore: PasscodeStore {
-    private(set) var stored: [CalcKey]?
+    private(set) var stored: [String]?
+    private(set) var storedAlphabet: AlphabetDescriptor?
+    private(set) var storedDisguiseId: String?
+    /// Makes the next `set(...)` throw, to exercise the write-failure paths.
+    var failNextSet = false
 
     var hasPasscode: Bool { stored != nil }
+    var activeDisguiseId: String? { storedDisguiseId }
 
-    func set(sequence: [CalcKey]) async throws {
-        stored = sequence
+    func set(tokens: [String], alphabet: AlphabetDescriptor, activeDisguiseId: String) async throws {
+        if failNextSet {
+            failNextSet = false
+            throw CocoaError(.fileWriteUnknown)
+        }
+        stored = tokens
+        storedAlphabet = alphabet
+        storedDisguiseId = activeDisguiseId
     }
 
-    func matches(sequence: [CalcKey]) async -> Bool {
-        stored == sequence
+    func matches(tokens: [String]) async -> Bool {
+        stored == tokens
     }
 
     func clear() {
         stored = nil
+        storedAlphabet = nil
+        storedDisguiseId = nil
     }
 }

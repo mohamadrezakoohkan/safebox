@@ -21,7 +21,10 @@ import com.calcplus.calculator.core.domain.model.AlbumSort
 import com.calcplus.calculator.core.domain.model.NoteSort
 import com.calcplus.calculator.core.lock.AppLockManager
 import com.calcplus.calculator.core.lock.LockState
-import com.calcplus.calculator.feature.calculator.CalcKey
+import com.calcplus.calculator.core.disguise.DisguiseRegistry
+import com.calcplus.calculator.feature.calculator.CalculatorDisguise
+import com.calcplus.calculator.feature.numpad.NumpadDisguise
+import com.calcplus.calculator.feature.pattern.PatternDisguise
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -29,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -43,7 +47,7 @@ private class XorWrapper : BlobWrapper {
 
 @RunWith(RobolectricTestRunner::class)
 class VaultNukerTest {
-    private val code = listOf(CalcKey.D7, CalcKey.ADD, CalcKey.D7, CalcKey.PCT)
+    private val code = listOf("D7", "ADD", "D7", "PCT")
 
     private lateinit var db: SafeBoxDatabase
     private lateinit var fileStore: PhotoFileStore
@@ -51,6 +55,9 @@ class VaultNukerTest {
     private lateinit var onboardingStore: OnboardingStore
     private lateinit var sortPrefsStore: SortPrefsStore
     private lateinit var lockManager: AppLockManager
+    private lateinit var sharedDataStore: androidx.datastore.core.DataStore<
+        androidx.datastore.preferences.core.Preferences,
+        >
 
     @Before
     fun setUp() {
@@ -61,7 +68,7 @@ class VaultNukerTest {
         fileStore = PhotoFileStore(File(context.filesDir, "nuke-${UUID.randomUUID()}"))
         // Mirror production: passcode blob and onboarding flag share ONE
         // DataStore file (a single startup read serves both).
-        val sharedDataStore = PreferenceDataStoreFactory.create(
+        sharedDataStore = PreferenceDataStoreFactory.create(
             produceFile = { File(context.filesDir, "nuke-prefs-${UUID.randomUUID()}.preferences_pb") }
         )
         passcodeStore = PasscodeStore(sharedDataStore, XorWrapper(), iterations = 1_000)
@@ -139,7 +146,7 @@ class VaultNukerTest {
         File(fileStore.thumbsDir, "t.jpg").writeBytes(byteArrayOf(1))
         File(fileStore.photosDir, "trashed.jpg").writeBytes(byteArrayOf(4, 5, 6))
         File(fileStore.thumbsDir, "trashed-thumb.jpg").writeBytes(byteArrayOf(2))
-        passcodeStore.set(code)
+        passcodeStore.set(code, CalculatorDisguise.alphabet, "calculator")
         onboardingStore.setComplete()
         // Non-default sort choices (decisions §4): erase must return both to
         // the just-installed default.
@@ -147,6 +154,7 @@ class VaultNukerTest {
         sortPrefsStore.setNoteSort(NoteSort.TITLE)
         lockManager = AppLockManager(
             PasscodeRepositoryImpl(passcodeStore),
+            DisguiseRegistry(listOf(CalculatorDisguise, NumpadDisguise, PatternDisguise)),
             hasPasscode = true,
             elapsedRealtime = { 0L },
             onboardingComplete = true,
@@ -176,6 +184,10 @@ class VaultNukerTest {
         // Passcode + onboarding flag gone.
         assertFalse(passcodeStore.hasPasscodeBlocking())
         assertFalse(passcodeStore.matches(code))
+        // …and the launch-read face mirror with it (iteration-3-decisions §3):
+        // a fresh setup must not inherit the erased vault's disguise.
+        assertNull(sharedDataStore.data.first()[PasscodeStore.KEY_ACTIVE_DISGUISE])
+        assertNull(passcodeStore.activeDisguiseId())
         assertFalse(onboardingStore.isCompleteBlocking())
         // Sort preferences back to their defaults (decisions §4).
         assertEquals(AlbumSort.DEFAULT, sortPrefsStore.albumSort.first())
@@ -198,12 +210,12 @@ class VaultNukerTest {
     fun sharedPrefsFileKeysAreIndependent() = runTest {
         // Both stores write to the same file: clearing one namespace must
         // never disturb the other.
-        passcodeStore.set(code)
+        passcodeStore.set(code, CalculatorDisguise.alphabet, "calculator")
         onboardingStore.setComplete()
         passcodeStore.clear()
         assertTrue(onboardingStore.isCompleteBlocking())
         assertFalse(passcodeStore.hasPasscodeBlocking())
-        passcodeStore.set(code)
+        passcodeStore.set(code, CalculatorDisguise.alphabet, "calculator")
         onboardingStore.reset()
         assertTrue(passcodeStore.hasPasscodeBlocking())
         assertTrue(passcodeStore.matches(code))

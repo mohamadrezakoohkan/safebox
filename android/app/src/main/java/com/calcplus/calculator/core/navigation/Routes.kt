@@ -17,6 +17,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SettingsRoute
 @Serializable object ChangePasscodeRoute
+/**
+ * Settings → "Change disguise" (iteration-3-decisions §5). Mirrors
+ * [ChangePasscodeRoute] in the Settings tab graph: it re-enrolls the code, so
+ * it lives beside the other passcode row rather than under Appearance.
+ */
+@Serializable object ChangeDisguiseRoute
 /** Settings → Privacy detail (decisions §5). */
 @Serializable object PrivacyRoute
 /**

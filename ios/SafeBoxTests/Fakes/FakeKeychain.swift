@@ -7,6 +7,10 @@ final class FakeKeychain: KeychainProviding, @unchecked Sendable {
     private var storage: [String: Data] = [:]
     private let lock = NSLock()
 
+    /// Makes the next `set(...)` throw, so the silent v1 → v2 rewrite failure
+    /// path can be exercised (decisions §9 step 3c).
+    var failNextSet = false
+
     private func key(_ service: String, _ account: String) -> String {
         service + "/" + account
     }
@@ -16,6 +20,15 @@ final class FakeKeychain: KeychainProviding, @unchecked Sendable {
     }
 
     func set(_ data: Data, service: String, account: String) throws {
+        if failNextSet {
+            failNextSet = false
+            throw CocoaError(.fileWriteUnknown)
+        }
+        lock.withLock { storage[key(service, account)] = data }
+    }
+
+    /// Writes bypassing `failNextSet`, for seeding a test fixture.
+    func seed(_ data: Data, service: String, account: String) {
         lock.withLock { storage[key(service, account)] = data }
     }
 
@@ -42,27 +55,35 @@ final class FakeKeychain: KeychainProviding, @unchecked Sendable {
 final class SpyPasscodeStore: PasscodeStore {
     private let wrapped: InMemoryPasscodeStore
     private(set) var matchesCallCount = 0
+    private(set) var setCallCount = 0
 
-    init(stored: [CalcKey]? = nil) {
+    init() {
         wrapped = InMemoryPasscodeStore()
-        if let stored {
-            Task { try? await wrapped.set(sequence: stored) }
-        }
     }
 
-    func seed(_ sequence: [CalcKey]) async {
-        try? await wrapped.set(sequence: sequence)
+    func seed(_ tokens: [String],
+              alphabet: AlphabetDescriptor = CalculatorDisguise().alphabet,
+              activeDisguiseId: String = "calculator") async {
+        try? await wrapped.set(tokens: tokens, alphabet: alphabet, activeDisguiseId: activeDisguiseId)
     }
 
     var hasPasscode: Bool { wrapped.hasPasscode }
-
-    func set(sequence: [CalcKey]) async throws {
-        try await wrapped.set(sequence: sequence)
+    var activeDisguiseId: String? { wrapped.activeDisguiseId }
+    var stored: [String]? { wrapped.stored }
+    var storedAlphabet: AlphabetDescriptor? { wrapped.storedAlphabet }
+    var failNextSet: Bool {
+        get { wrapped.failNextSet }
+        set { wrapped.failNextSet = newValue }
     }
 
-    func matches(sequence: [CalcKey]) async -> Bool {
+    func set(tokens: [String], alphabet: AlphabetDescriptor, activeDisguiseId: String) async throws {
+        setCallCount += 1
+        try await wrapped.set(tokens: tokens, alphabet: alphabet, activeDisguiseId: activeDisguiseId)
+    }
+
+    func matches(tokens: [String]) async -> Bool {
         matchesCallCount += 1
-        return await wrapped.matches(sequence: sequence)
+        return await wrapped.matches(tokens: tokens)
     }
 
     func clear() {

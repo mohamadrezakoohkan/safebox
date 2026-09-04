@@ -121,7 +121,21 @@ interface ContactRepository {
     suspend fun purgeExpired(now: Long)
 }
 
+/**
+ * Passcode storage seen by the lock subsystem. Tokens are opaque strings: the
+ * repository never learns which face produced them, and the serialization used
+ * for the KDF is the universal `|`-join (iteration-3-decisions §3).
+ */
 interface PasscodeRepository {
-    suspend fun set(sequence: List<com.calcplus.calculator.feature.calculator.CalcKey>)
-    suspend fun matches(sequence: List<com.calcplus.calculator.feature.calculator.CalcKey>): Boolean
+    /** One atomic replace: envelope + face mirror, in a single transaction. */
+    suspend fun set(
+        tokens: List<String>,
+        alphabet: com.calcplus.calculator.core.disguise.AlphabetDescriptor,
+        activeDisguiseId: String,
+    )
+
+    suspend fun matches(tokens: List<String>): Boolean
+
+    /** The enrolled face id from the envelope, or null when unreadable. */
+    suspend fun activeDisguiseId(): String?
 }

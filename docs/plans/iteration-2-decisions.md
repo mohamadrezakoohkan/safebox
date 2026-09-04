@@ -2,7 +2,7 @@
 
 **Document:** `docs/plans/iteration-2-decisions.md`
 **Companion to:** `docs/plans/iteration-2-todo.md` (the task list). This document settles every "shared decision" checkbox in the todo so the iOS and Android implementations cannot diverge. Where this document and the todo disagree, this document wins; where it changes user-visible behavior described in `idea-plan.md` or `calculator-disguise-design.md`, those documents are updated as part of the iteration.
-**Status:** Decided 2026-09-02. Implementation follows the sequence in §0.
+**Status:** Decided 2026-09-02, shipped. **Partly superseded by `docs/plans/iteration-3-decisions.md`** (see its §10): the lock-surface epoch was renamed, and the guide's first page became a lock-face carousel whose selection also drives pages 3 and 4, so revisit mode no longer renders a fixed set of four calculator pages.
 
 ---
 
@@ -49,7 +49,7 @@ Why this over the alternatives:
 
 **Directions:**
 - Only `Locked → Unlocked` and `NeedsSetup/firstRunSetup → Unlocked` animate (first-run setup confirmation uses the **same** reveal — it is the first time the user sees the vault and there is no reason for it to feel different).
-- **Every other transition is an instant cut:** `Unlocked → Locked` (manual, background, any lock), `NeedsSetup ↔ Locked`, and every `calculatorEpoch` bump (the calculator recreation must never read as a transition).
+- **Every other transition is an instant cut:** `Unlocked → Locked` (manual, background, any lock), `NeedsSetup ↔ Locked`, and every `disguiseEpoch` (named `calculatorEpoch` when this was written; renamed in iteration 3) bump (the calculator recreation must never read as a transition).
 - The one-time no-recovery notice (shown after first-run setup) must not pop over the reveal: present it only after the reveal completes (gate on transition completion or delay by the reveal duration).
 - The design doc's §5.4 budget statement stays: "≤ 300 ms perceived" is measured from the `=` press to the **first reveal frame**; the 260 ms tail is excluded.
 
@@ -135,7 +135,7 @@ The photo grid while an import is running with zero photos keeps the empty state
 
 The four long About paragraphs are removed from the list.
 
-**Revisit mode (decided):** `OnboardingView` / `OnboardingScreen` gain a `mode` parameter (`firstRun` | `revisit`). In revisit mode: the top-right button reads `onboarding_done` on every page (it replaces Skip and dismisses); the final CTA also reads `onboarding_done`; finishing/dismissing **never** writes the onboarding-complete flag or calls `completeOnboarding()`; the vault stays unlocked and the user returns to Settings. Presentation: iOS `.sheet` from `SettingsScreen` (dismissible by swipe, no `interactiveDismissDisabled`); Android full-screen route `GuideRoute` inside `navigation<SettingsTab>` with the bottom bar hidden for that route. Both are reachable only from the unlocked vault by construction.
+**Revisit mode (decided; amended in iteration 3 — page 1 is now the lock-face carousel, locked on the current face and not selectable, and pages 3–4 show that face's guide content instead of the calculator's):** `OnboardingView` / `OnboardingScreen` gain a `mode` parameter (`firstRun` | `revisit`). In revisit mode: the top-right button reads `onboarding_done` on every page (it replaces Skip and dismisses); the final CTA also reads `onboarding_done`; finishing/dismissing **never** writes the onboarding-complete flag or calls `completeOnboarding()`; the vault stays unlocked and the user returns to Settings. Presentation: iOS `.sheet` from `SettingsScreen` (dismissible by swipe, no `interactiveDismissDisabled`); Android full-screen route `GuideRoute` inside `navigation<SettingsTab>` with the bottom bar hidden for that route. Both are reachable only from the unlocked vault by construction.
 
 ---
 
